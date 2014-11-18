@@ -1,0 +1,167 @@
+@CHARSET "ISO-8859-1";
+html, body {
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 0px; 
+    margin-bottom: 0px; 
+    margin-left: 0px; 
+    margin-right: 0px;
+    padding: 0;
+	width: 100%;
+	height: 100%; 
+	color: #545454;
+}
+
+*{font-family:Verdana;}
+
+/* unvisited link */
+a:link {
+    color: #424242;
+    text-decoration: none;
+}
+
+/* visited link */
+a:visited {
+    color: #424242;
+    text-decoration: none;
+}
+
+/* mouse over link */
+a:hover {
+    color: #424242;
+    text-decoration: underline;
+}
+
+/* selected link */
+a:active {
+    color: #424242;
+    text-decoration: none;
+}
+
+p { 
+	margin: 0;
+	padding: 0;
+}
+
+p.income { 
+	margin: 0;
+	padding: 0;
+	color: #008000;
+	font-weight:bold;
+}
+
+p.expense { 
+	margin: 0;
+	padding: 0;
+	color: #800000;
+	
+	font-weight:bold;
+}
+
+p.selectedAccount { 
+	margin: 0;
+	padding: 0;
+	font-style:oblique;
+	color: #000000;
+}
+
+.content {
+	padding:0;
+	margin:0;
+	min-height: 100%;
+	position: relative;
+	overflow: auto;
+	z-index: 0; 
+}
+
+ul
+{
+    list-style-type: none;
+    list-style: none;
+}
+
+li
+{
+    list-style-type: none;
+    list-style: none;
+}
+
+.background {
+	position: absolute;
+	z-index: -1;
+	top: 0;
+	bottom: 0;
+	margin: 0;
+	padding: 0;
+}
+
+.top_block {
+	width: 100%;
+	display: block; 
+}
+
+.header {
+	width: 100%;
+	height: 60px;
+	background-color: #f1f1f1;
+}
+
+.navigation {
+	position:absolute;
+	top:5px;
+	left:20px;
+	width: auto;
+	height: 20px;
+}
+
+.userpanel {
+	position:absolute;
+	top:5px;
+	right:20px;
+	width: auto;
+	height: 20px;
+	float: left;
+}
+
+.main {
+	position:relative;
+	margin-top:50px;
+	margin-left:auto;
+	margin-right:auto;
+	width:70%;
+	height:500px;
+	background-color:none;
+}
+
+#description {
+	position: absolute;
+	padding-top:10px;
+	padding-left:15px;
+	margin-left:450px;
+	margin-top:30px;
+	background-color: #f1f1f1;
+	width:300px;
+	height:130px;
+}
+ 
+.accountList {
+	position:absolute;
+	top:100px;
+	left:20px;
+	width:225px;
+	height:300px;
+	overflow-y:auto;
+	overflow-x:hidden;
+}
+
+.accountCreation {
+	position:absolute;
+	top:100px;
+	left:250px;
+	width:220px;
+	height:30px;
+}
+
+#createNewAccountButton {
+	width:200px;
+}
