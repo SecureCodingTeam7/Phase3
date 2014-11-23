@@ -1,3 +1,7 @@
+code:123456789012345
+
 destination:1234567890
-code:012345678901234
+amount:100.08
+
+destination:1234567890
 amount:100.08

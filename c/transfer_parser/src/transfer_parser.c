@@ -13,6 +13,11 @@
 #include <string.h>
 #include <mysql.h>
 
+typedef struct transfer_details {
+	char dest_acc_number[10];
+	double amount;
+} transfer_details;
+
 int check_acc_number(MYSQL_STMT *stmt, char acc_number[11]) {
 	MYSQL_BIND param[1], result[1];
 	long rcount = 1337;
@@ -327,40 +332,101 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	char buffer[512];
-	char line_buffer[512];
+	char *buffer;
+	unsigned int buffer_len;
 	char *src = argv[2];
-	char dest[11] = {'\0'}, amount[11] = {'\0'}, code[16] = {'\0'};
+	char dest[11] = {'\0'}, amount[11] = {'\0'};
+	char code[16] = {'\0'};
+	int transfer_count = 0;
 
-	int count = fread(buffer, 1, 512, fp);
-	int i;
-	int j;
-	for(i = 0; i < count; i++) {
-		j = 0;
-		while(buffer[i] != '\n' && i < count) {
-			line_buffer[j] = buffer[i];
-			i++; j++;
+	transfer_details transfers[100];
+
+	while(1) {
+		int bytes_read = getline(&buffer, &buffer_len, fp);
+		if(bytes_read == -1) {
+			free(buffer);
+			buffer_len = 0;
+			break;
+		}
+		// skip emtpy line
+		if(bytes_read == 1 && buffer[0] == '\n') {
+			free(buffer);
+			buffer_len = 0;
+			continue;
 		}
 
-		line_buffer[j] = '\0';
+		// substitute the '\n' with '\0'
+		if(buffer[bytes_read - 1] != '\n') {
+			if(buffer_len <= bytes_read) {
+				buffer_len++;
+				void *ptr = realloc(buffer, buffer_len);
+				if(!ptr) {
+					printf("mem error\n");
+					return 20;
+				}
+			}
+			buffer[bytes_read] = '\0';
+		} else {
+			buffer[bytes_read - 1] = '\0';
+		}
 
-		if(!strncmp(line_buffer, "destination:", 12)) {
-			strncpy(dest, line_buffer + 12, 10);
+		if(!memcmp(buffer, "destination:", 12)) {
+			memcpy(dest, buffer + 12, 10);
 			dest[10] = '\0';
-		} else if(!strncmp(line_buffer, "amount:", 7)) {
-			strncpy(amount, line_buffer + 7, 10);
+		} else if(!memcmp(buffer, "amount:", 7)) {
+			memcpy(amount, buffer + 7, 10);
 			amount[10] = '\0';
-		} else if(!strncmp(line_buffer, "code:", 5)) {
-			strncpy(code, line_buffer + 5, 15);
+
+			if(dest[0] == '\0' || amount[0] == '\0' || code[0] == '\0') {
+				printf("destination, source, code and amount fields must be specified and non empty!\n");
+				return 2;
+			}
+
+			// check whether amount has fractional digits and if so if there are more than 2
+			int i;
+			for(i = 0; i < 11 && amount[i] != '\0'; i++) {
+				if(amount[i] == '.') {
+					i += 3;
+					if(i >= 11) break;
+					if(amount[i] == '\0') break;
+
+					printf("Amount must have exactly 2 fractional digits!\n");
+					return 3;
+				}
+			}
+
+			// check if the next element after the valid number represents the end of the string
+			char *last_element;
+			double famount = strtod(amount, &last_element);
+			if(!(famount > 0) || *last_element != '\0') {
+				printf("amount must be a floating point number!\n");
+				return 14;
+			}
+
+			if(transfer_count > 100) {
+				printf("Only 100 transactions per file allowed!\n");
+				return 18;
+			}
+
+			memcpy(transfers[transfer_count].dest_acc_number, dest, 11);
+			transfers[transfer_count].amount = famount;
+
+			transfer_count++;
+
+			// reset
+			memset(dest, '\0', 11);
+			memset(amount, '\0', 11);
+
+		} else if(!memcmp(buffer, "code:", 5)) {
+			memcpy(code, buffer + 5, 15);
 			code[15] = '\0';
 		} else {
-			printf("Unknown identifier: %s", line_buffer);
+			printf("Unknown identifier: %s", buffer);
+			return 16;
 		}
-	}
 
-	if(dest[0] == '\0' || amount[0] == '\0' || code[0] == '\0') {
-		printf("destination, source, code and amount fields must be specified and non empty!\n");
-		return 2;
+		free(buffer);
+		buffer_len = 0;
 	}
 
 	// check if the code has right length
@@ -370,29 +436,7 @@ int main(int argc, char **argv) {
 		return 13;
 	}
 
-	// check wheter amount has fractional digits and if so if there are more than 2
-	for(i = 0; i < 11 && amount[i] != '\0'; i++) {
-		if(amount[i] == '.') {
-			i += 3;
-			if(i >= 11) break;
-			if(amount[i] == '\0') break;
-
-			printf("Amount must have exactly 2 fractional digits!\n");
-			return 3;
-		}
-	}
-
-	printf("dest: %s\n", dest);
-	printf("amount: %s\n", amount);
-	printf("code: %s\n", code);
-
-	// check if the next element after the valid number represents the end of the string
 	char *last_element;
-	double famount = strtod(amount, &last_element);
-	if(!(famount > 0) || *last_element != '\0') {
-		printf("amount must be a floating point number!");
-		return 14;
-	}
 
 	int code_number = strtol(argv[3], &last_element, 10);
 	if(code_number == 0 || *last_element != '\0') {
@@ -406,8 +450,6 @@ int main(int argc, char **argv) {
 		return 15;
 	}
 
-	printf("famount: %lf\n", famount);
-
 	fclose(fp);
 
 	MYSQL *db = mysql_init(NULL);
@@ -419,7 +461,7 @@ int main(int argc, char **argv) {
 	if(mysql_real_connect(db,
 			"localhost",
 			"root",
-			"#team7#beste",
+			"samurai",
 			"mybank",
 			0,
 			NULL,
@@ -430,29 +472,41 @@ int main(int argc, char **argv) {
 	}
 
 	int error;
+
+	// first check the code
 	MYSQL_STMT *stmt = mysql_stmt_init(db);
-	if((error = check_acc_number(stmt, src))) {
-		return error;
-	}
-	mysql_stmt_close(stmt);
-
-	stmt = mysql_stmt_init(db);
-	if((error = check_acc_number(stmt, dest))) {
-		return error;
-	}
-	mysql_stmt_close(stmt);
-
-	stmt = mysql_stmt_init(db);
 	if((error = test_code(stmt, code, src, code_number, user_id))) {
 		return error;
 	}
 	mysql_stmt_close(stmt);
 
+	// then the src acc number
 	stmt = mysql_stmt_init(db);
-	if((error = insert_transaction(stmt, src, dest, code, famount))) {
+	if((error = check_acc_number(stmt, src))) {
 		return error;
 	}
 	mysql_stmt_close(stmt);
+
+
+	// then do the batch transaction
+	int i;
+	for(i = 0; i < transfer_count; i++) {
+		printf("Details for transfer %d\n", i);
+		printf("Dest: %s\n", transfers[i].dest_acc_number);
+		printf("Amount: %f\n", transfers[i].amount);
+
+		stmt = mysql_stmt_init(db);
+		if((error = check_acc_number(stmt, transfers[i].dest_acc_number))) {
+			return error;
+		}
+		mysql_stmt_close(stmt);
+
+		stmt = mysql_stmt_init(db);
+		if((error = insert_transaction(stmt, src, transfers[i].dest_acc_number, code, transfers[i].amount))) {
+			return error;
+		}
+		mysql_stmt_close(stmt);
+	}
 
 	return EXIT_SUCCESS;
 }
