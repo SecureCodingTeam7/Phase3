@@ -14,7 +14,7 @@
     <root id="root">
       <element id="archive" name="SCS.jar">
         <element id="module-output" name="SmartCardSim" />
-        <element id="library" level="project" name="commons-net-3.3" />
+        <element id="extracted-dir" path="$PROJECT_DIR$/libs/commons-net-3.3.jar" path-in-jar="/" />
       </element>
     </root>
   </artifact>
