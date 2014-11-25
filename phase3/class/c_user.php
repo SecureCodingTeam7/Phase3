@@ -524,7 +524,7 @@ class User {
 		$result = array ();
 		try{
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
-			$sql = "SELECT id, email, passwd, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active` FROM users WHERE email = :email LIMIT 1";
+			$sql = "SELECT id, email, passwd, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE email = :email LIMIT 1";
 		
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "email", $email, PDO::PARAM_STR );
@@ -537,6 +537,7 @@ class User {
 			$this->isEmployee = $result['is_employee'];
 			$this->isActive = $result['is_active'];
 			$this->id = $result['id'];
+			$this->pwRecoverId = $result['pw_recover_id'];
 			
 			$connection = null;
 			return $result;
@@ -708,5 +709,67 @@ class User {
 			return array();
 		}
 	}
+	
+	public function sendPwRecoveryMail() {
+		
+		$pwRecoverId = randomDigits(15);
+		
+		try {
+			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+			$sql = "UPDATE users set pw_recover_id = :pw_recover_id WHERE id = :id";
+		
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "pw_recover_id", $pwRecoverId, PDO::PARAM_STR );
+			$stmt->bindValue( "id", $this->id, PDO::PARAM_STR );
+			$stmt->execute();
+		
+			$connection = null;
+			
+			// Send the mail
+			
+			$message= "Dear User ".$this->email.".\n You requested a new password. Please click on this link to get a new password via email: phase3/pw_recovery?email=$this->email&id=$pwRecoverId";
+				
+			
+			$this->sendMail($this->email, $message);
+			
+		} catch ( PDOException $e ) {
+			echo "<br />Connect Error: ". $e->getMessage();
+		}
+	}
+	
+	public function doPwRecovery($id) {
+		if(strcmp($this->pwRecoverId, $id) == 0) {
+			$newPassword = randomDigits(8);
+			
+			try {
+				$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+				$sql = "UPDATE users set passwd = :password, pw_recover_id='NULL' WHERE id = :id";
+		
+				$stmt = $connection->prepare( $sql );
+				$stmt->bindValue( "password", generateSaltedHash($newPassword), PDO::PARAM_STR );
+				$stmt->bindValue( "id", $this->id, PDO::PARAM_STR );
+				$stmt->execute();
+		
+				$connection = null;
+			
+				// Send the mail
+			
+				$message= "Dear User ".$this->email.".\n Your new Password is: $newPassword";
+				
+				$this->sendMail($this->email, $message);
+				
+				return true;
+			
+			} catch ( PDOException $e ) {
+				echo "<br />Connect Error: ". $e->getMessage();
+				return false;
+			}
+			
+		} else {
+			return false;
+		}
+		
+	}
+	
 }
 ?>
