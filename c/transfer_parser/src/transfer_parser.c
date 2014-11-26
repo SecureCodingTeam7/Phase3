@@ -326,6 +326,7 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 
 void generate_tan_with_seed(char *tan, uint64_t seed, char *pin, char *dest, char *amount) {
 	char tmp[255];
+	memset(tmp, 0, 255);
 
 	snprintf(tmp, 255, "%lld%s%s%s%lld", seed, pin, dest, amount, seed);
 
@@ -339,6 +340,8 @@ void generate_tan_with_seed(char *tan, uint64_t seed, char *pin, char *dest, cha
 	for(i = 0; i < 16; i++) {
 		digest[i] = abs(digest[i]);
 	}
+
+	memset(tmp, 0, 255);
 
 	snprintf(tmp, 255, "%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d",
 			digest[0],
@@ -358,7 +361,8 @@ void generate_tan_with_seed(char *tan, uint64_t seed, char *pin, char *dest, cha
 			digest[14],
 			digest[15]);
 
-	memcpy(tan, tmp, 15);
+	memcpy(tan, tmp, 16);
+	tan[16] = '\0';
 
 }
 
@@ -432,9 +436,7 @@ int check_generated_code(MYSQL_STMT *stmt, int user_id, char *user_tan, char *de
 
 	mysql_stmt_free_result(stmt);
 
-	printf("pin: %s\n", pin);
-
-	char tan[15];
+	char tan[16];
 	generate_tan_with_seed(tan, seed, pin, dest, amount);
 	printf("tan: %s \n", tan);
 	if(!strncmp(tan, user_tan, 15)) {
