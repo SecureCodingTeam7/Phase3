@@ -362,7 +362,7 @@ void generate_tan_with_seed(char *tan, uint64_t seed, char *pin, char *dest, cha
 			digest[15]);
 
 	memcpy(tan, tmp, 16);
-	tan[16] = '\0';
+	tan[15] = '\0';
 
 }
 
@@ -438,17 +438,17 @@ int check_generated_code(MYSQL_STMT *stmt, int user_id, char *user_tan, char *de
 
 	char tan[16];
 	generate_tan_with_seed(tan, seed, pin, dest, amount);
-	printf("tan: %s \n", tan);
+	//printf("tan: %s \n", tan);
 	if(!strncmp(tan, user_tan, 15)) {
-		printf("tan: %s \n", tan);
+		//printf("tan: %s \n", tan);
 		return 1;
 	}
 
 	uint64_t seed2 = seed_time - seed_time % (1 * 60) - 60;
 	generate_tan_with_seed(tan, seed2, pin, dest, amount);
-	printf("tan: %s \n", tan);
+	//printf("tan: %s \n", tan);
 	if(!strncmp(tan, user_tan, 15)) {
-		printf("tan: %s \n", tan);
+		//printf("tan: %s \n", tan);
 		return 1;
 	}
 
