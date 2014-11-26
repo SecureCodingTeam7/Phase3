@@ -1,10 +1,9 @@
 package scs;
 
+import org.apache.commons.net.time.TimeUDPClient;
+
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
-
-import org.apache.commons.net.time.TimeUDPClient;
 
 public class NetworkTime {
 	
@@ -15,7 +14,7 @@ public class NetworkTime {
 		try {
 	        client.setDefaultTimeout(60000);
 	        client.open();
-	        return client.getTime(InetAddress.getByName(HOST));
+	        return client.getTime(InetAddress.getByName(HOST)) - TimeUDPClient.SECONDS_1900_TO_1970;
 		} finally {
             client.close();
         }

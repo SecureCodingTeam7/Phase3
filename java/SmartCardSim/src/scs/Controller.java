@@ -5,6 +5,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
@@ -14,7 +15,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Random;
 import java.util.ResourceBundle;
 
 public class Controller implements Initializable {
@@ -29,6 +29,8 @@ public class Controller implements Initializable {
     private TextField amountTextField;
     @FXML
     private Button copyTANButton;
+    @FXML
+    private TabPane tabPane;
 
     String tan;
 
@@ -36,6 +38,7 @@ public class Controller implements Initializable {
     public void initialize(URL location, ResourceBundle resources) {
         statusLabel.setVisible(false);
         copyTANButton.setVisible(false);
+        tabPane.getStyleClass().add("floating");
     }
 
     @FXML
@@ -69,8 +72,6 @@ public class Controller implements Initializable {
         }
 
         long seed = time - time % (1 * 60);
-        System.out.println(seed);
-        Random random = new Random(seed);
 
         MessageDigest md5Digest;
 
@@ -83,21 +84,11 @@ public class Controller implements Initializable {
             return;
         }
 
-        byte[] md5 = md5Digest.digest((pin + destination + amount).getBytes());
-
-        byte[] randoms = new byte[15];
-        random.nextBytes(randoms);
-
-        byte[] result = new byte[15];
-
-        for(int i = 0; i < result.length; i++) {
-            int xor = randoms[i] ^ md5[i];
-            result[i] = (byte)(0xff & xor);
-        }
+        byte[] md5 = md5Digest.digest((seed + pin + destination + amount + seed).getBytes());
 
         StringBuffer stringBuffer = new StringBuffer();
 
-        for(byte b : result) {
+        for(byte b : md5) {
             stringBuffer.append(Math.abs(b));
         }
 
