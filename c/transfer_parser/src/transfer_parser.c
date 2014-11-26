@@ -236,9 +236,70 @@ int test_code(MYSQL_STMT *stmt, char code[16], char src[11], long requested_code
 	return 0;
 }
 
-int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[16], double amount) {
+int update_balance(MYSQL_STMT *stmt, char *acc_number, double amount, int addition) {
+	MYSQL_BIND param[2];
+
+	if(stmt == NULL)
+	{
+		printf("Could not initialize statement\n");
+		return 6;
+	}
+
+	char *sql;
+
+	if(addition) {
+		sql = "update accounts set balance = balance + ? where account_number = ?";
+	} else {
+		sql = "update accounts set balance = balance - ? where account_number = ?";
+	}
+
+	if(mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+		printf("Could not prepare statement\n");
+		printf("error: %s\n", mysql_stmt_error(stmt));
+		return 7;
+	}
+
+	memset(param, 0, sizeof(param));
+	param[0].buffer_type = MYSQL_TYPE_DOUBLE;
+	param[0].buffer = (void *) &amount;
+
+	// TODO why is a copy neccessary??
+	char tmp[11];
+	strncpy(tmp, acc_number, 11);
+
+	param[1].buffer_type = MYSQL_TYPE_VARCHAR;
+	param[1].buffer = (void *) &tmp;
+	param[1].buffer_length = strlen(acc_number);
+
+	if(mysql_stmt_bind_param(stmt, param) != 0) {
+		printf("Could not bind parameters\n");
+		printf("error: %s\n", mysql_stmt_error(stmt));
+		return 8;
+	}
+
+	if(mysql_stmt_execute(stmt) != 0) {
+		printf("Execute failed\n");
+		return 10;
+	}
+
+	return 0;
+}
+
+int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[16], double amount, int update_tan) {
 	MYSQL_BIND param[5];
 
+	// update balances
+	int error;
+	if((error = update_balance(stmt, src, amount, 0))) {
+		printf("Could not update balance!");
+		return error;
+	}
+	if((error = update_balance(stmt, dest, amount, 1))) {
+		printf("Could not update balance!");
+		return error;
+	}
+
+	// insert into history
 	if(stmt == NULL)
 	{
 		printf("Could not initialize statement\n");
@@ -295,6 +356,8 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 		printf("Execute failed\n");
 		return 10;
 	}
+
+	if(!update_tan) return 0;
 
 	// mark code as used
 	sql = "update trans_codes set is_used = 1 where code = ?";
@@ -455,7 +518,7 @@ int check_generated_code(MYSQL_STMT *stmt, int user_id, char *user_tan, char *de
 	return 0;
 }
 
-int check_account_balance(MYSQL_STMT *stmt, int amount, char *acc_number) {
+int check_account_balance(MYSQL_STMT *stmt, double amount, char *acc_number) {
 	MYSQL_BIND param[1], result[1];
 	my_bool is_null[1];
 
@@ -728,7 +791,7 @@ int main(int argc, char **argv) {
 		mysql_stmt_close(stmt);
 
 		stmt = mysql_stmt_init(db);
-		if((error = insert_transaction(stmt, src, transfers[i].dest_acc_number, code, transfers[i].amount))) {
+		if((error = insert_transaction(stmt, src, transfers[i].dest_acc_number, code, transfers[i].amount, code_number > 0))) {
 			return error;
 		}
 		mysql_stmt_close(stmt);
