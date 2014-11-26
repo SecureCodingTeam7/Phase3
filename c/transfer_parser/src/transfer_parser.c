@@ -83,7 +83,7 @@ int check_acc_number(MYSQL_STMT *stmt, char acc_number[11]) {
 
 	mysql_stmt_free_result(stmt);
 
-	printf("result: %ld\n", rcount);
+	//printf("result: %ld\n", rcount);
 
 	if(rcount != 1) {
 		printf("Account number not found!\n");
@@ -410,7 +410,7 @@ int check_generated_code(MYSQL_STMT *stmt, int user_id, char *user_tan, char *de
 
 	if(mysql_stmt_bind_result(stmt, result) != 0) {
 		printf("Could not bind result\n");
-		printf("error: %s\n", mysql_stmt_error(stmt));
+		printf("error1: %s\n", mysql_stmt_error(stmt));
 		return 9;
 	}
 
@@ -453,6 +453,82 @@ int check_generated_code(MYSQL_STMT *stmt, int user_id, char *user_tan, char *de
 	}
 
 	return 0;
+}
+
+int check_account_balance(MYSQL_STMT *stmt, int amount, char *acc_number) {
+	MYSQL_BIND param[1], result[1];
+	my_bool is_null[1];
+
+	if(stmt == NULL)
+	{
+		printf("Could not initialize statement\n");
+		return 6;
+	}
+
+	char *sql = "select balance from accounts where account_number = ?";
+
+	if(mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+		printf("Could not prepare statement\n");
+		return 7;
+	}
+
+	double balance = 0;
+
+	memset(param, 0, sizeof(param));
+	memset(result, 0, sizeof(result));
+
+	// TODO why is a copy neccessary??
+	char tmp[11];
+	strncpy(tmp, acc_number, 11);
+
+	param[0].buffer_type = MYSQL_TYPE_VARCHAR;
+	param[0].buffer = (void *) &tmp;
+	param[0].buffer_length = strlen(acc_number);
+
+	result[0].buffer_type = MYSQL_TYPE_DOUBLE;
+	result[0].buffer = (void *) &balance;
+	result[0].is_null = &is_null[0];
+
+	if(mysql_stmt_bind_param(stmt, param) != 0) {
+		printf("Could not bind parameters\n");
+		return 8;
+	}
+
+	if(mysql_stmt_bind_result(stmt, result) != 0) {
+		printf("Could not bind result\n");
+		printf("error: %s\n", mysql_stmt_error(stmt));
+		return 9;
+	}
+
+	if(mysql_stmt_execute(stmt) != 0) {
+		printf("Execute failed\n");
+		return 10;
+	}
+
+	if(mysql_stmt_store_result(stmt) != 0) {
+		printf("Storing result failed\n");
+		return 10;
+	}
+
+	int error;
+	if((error = mysql_stmt_fetch(stmt)) != 0) {
+		if(error == MYSQL_NO_DATA) {
+			printf("NO DATA!\n");
+			return 12;
+		}
+		printf("Could not fetch result\n");
+		return 11;
+	}
+
+	mysql_stmt_free_result(stmt);
+
+	// double comparison -> min. threshold
+	if(balance - amount > 0.0001) {
+		return 0;
+	}
+
+	printf("Balance too low");
+	return 232;
 }
 
 int main(int argc, char **argv) {
@@ -643,6 +719,10 @@ int main(int argc, char **argv) {
 
 		stmt = mysql_stmt_init(db);
 		if((error = check_acc_number(stmt, transfers[i].dest_acc_number))) {
+			return error;
+		}
+		stmt = mysql_stmt_init(db);
+		if((error = check_account_balance(stmt, transfers[i].amount, src))) {
 			return error;
 		}
 		mysql_stmt_close(stmt);
