@@ -44,3 +44,12 @@ for each subsequent request until the session expires.
 # db insert for Name (register)
 
 # db insert of source_name and destination_name for transactions
+
+# SSL configuration example (into httpd.conf):
+<VirtualHost localhost:443>
+DocumentRoot "C:/xampp/htdocs/phase3n/phase3"
+ServerName localhost
+SSLEngine on
+SSLCertificateFile "C:/xampp/mybank.crt"
+SSLCertificateKeyFile "C:/xampp/mybank.key"
+</VirtualHost> 
