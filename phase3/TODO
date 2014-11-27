@@ -36,3 +36,11 @@ for each subsequent request until the session expires.
 
  If the token was not found within the request or value is mismatch, 
  then the request should be aborted, token should be reset and the event logged as a potential CSRF attack in progress.
+ 
+ # Integrate Balance into Transaction Logic (detuct and add to balance, disallow transfer if balance too low)
+
+# Let Employees initialize the Balance upon user approval
+
+# db insert for Name (register)
+
+# db insert of source_name and destination_name for transactions
