@@ -3,6 +3,7 @@ include_once(__DIR__.'/../include/conf.php');
 include_once(__DIR__.'/../include/helper.php');
 include_once(__DIR__.'/../include/crypt.php'); 
 include_once(__DIR__.'/../include/TransferException.php');
+include_once(__DIR__.'/../include/InvalidInputException.php');
 include_once(__DIR__.'/../include/IsActiveException.php');
 include_once(__DIR__.'/../include/SendEmailException.php');
 include_once(__DIR__.'/../include/phpmailer/class.smtp.php');
@@ -14,6 +15,7 @@ class User {
 	public $id = null;
 	public $isEmployee = null;
 	public $isActive = null;
+	public $DEBUG = false;
 	
 	public function getAccountNumberID( $accountNumber ) {
 		try {
@@ -148,7 +150,7 @@ class User {
 				//~ return false;
 			//~ }
 		} catch ( PDOException $e ) {
-			echo "<br />Connect Error: ". $e->getMessage();
+			echo "<br />Connect Error (generateTANList): ". $e->getMessage();
 			return false;
 		}
 	}
@@ -349,20 +351,62 @@ class User {
 	
 	
 	public function register( $data = array() ) {
-		if( isset( $data['email'] ) ) $this->email = stripslashes( strip_tags( $data['email'] ) );
-		else return false;
-		
-		if(checkUserExists($this->email)){
-			return false;
+		// DEBUG
+		if ($this->DEBUG) {
+			echo "<br />===================================================<br />";
+			echo "Call: register() with POST DATA:<br />";
+			echo "EMAIL: ".$data['email']."<br />";
+			echo "Name: ".$data['username']."<br />";
+			echo "Pass: ".$data['password']."<br />";
+			echo "ConfirmPass: ".$data['confirm_password']."<br />";
+			echo "Status: ".$data['status']."<br />";
 		}
 		
-		if( isset( $data['password'] ) ) $this->password = stripslashes( strip_tags( $data['password'] ) );
-		else return false;
-		if( isset( $data['confirm_password'] ) ) $confirm_password = stripslashes( strip_tags( $data['confirm_password'] ) );
-		else return false;
-		if( isset( $data['status'] ) ) $status = stripslashes( strip_tags( $data['status'] ) );
-		else return false;
+		// validate input
+		if( isset( $data['email'] ) ) {
+			$this->email = stripslashes( strip_tags( $data['email'] ) ); 
+		} else {
+			throw new InvalidInputException("No email found. Please check the Email address.");
+		}
 		
+		if (!isValidEmail( $this->email )) {
+			throw new InvalidInputException("Email address invalid. Please check the Email address.");
+		}
+		
+		if( checkUserExists( $this->email ) ){
+			throw new InvalidInputException("There already exists a user with this email address.");
+		}
+		
+		if ( isset( $data['username'] ) ) {
+			$this->name = stripslashes( strip_tags( $data['username'] ) );
+		} else {
+			throw new InvalidInputException("No Name provided. Please check the Name.");
+		}
+		
+		if ( preg_match('/[^a-z\s-]/i', $this->name ) ) {
+			throw new InvalidInputException("Invalid Name. Please check the Name.");
+		}
+		
+		if( isset( $data['password'] ) ) {
+			$this->password = stripslashes( strip_tags( $data['password'] ) );
+		} else {
+			throw new InvalidInputException("Please check your password.");
+		}
+		
+		if( isset( $data['confirm_password'] ) ) {
+			$confirm_password = stripslashes( strip_tags( $data['confirm_password'] ) );
+		} else {
+			throw new InvalidInputException("Please check the confirmation password.");
+		}
+		
+		if( isset( $data['status'] ) ) {
+			$status = stripslashes( strip_tags( $data['status'] ) );
+		} else {
+			throw new InvalidInputException("Please select whether you are an Employee or Client.");
+		}
+
+
+		// Input seems valid, proceed with registration
 		if ($data['status'] == 1){
 			$this->isEmployee = true;
 		} else {
@@ -370,8 +414,9 @@ class User {
 		}
 		
 		if (!$this->checkPassword($this->password,$confirm_password)){
-		 return false;
+		 	throw new InvalidInputException("The two passwords do not match. Please check your password and confirmation password.");
 		}
+		
 		
 		try{
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
@@ -399,7 +444,7 @@ class User {
 			}
 			
 		} catch ( PDOException $e ) {
-			echo "<br />Connect Error: ". $e->getMessage();
+			echo "<br />Connect Error (register): ". $e->getMessage();
 			return false;
 		}
 	}
@@ -474,7 +519,7 @@ class User {
 			}
 				
 		} catch ( PDOException $e ) {
-			echo "<br />Connect Error: ". $e->getMessage();
+			echo "<br />Connect Error (addAccount): ". $e->getMessage();
 			return false;
 		}
 	}
@@ -539,10 +584,21 @@ class User {
 			$this->id = $result['id'];
 			$this->pwRecoverId = $result['pw_recover_id'];
 			
+			if ($this->DEBUG) {
+				echo "<br />===================================================<br />";
+				echo "Call: getUserDataFromEmail() for ".$email.":<br />";
+				echo "EMAIL: ".$result['email']."<br />";
+				echo "Pass: ".$result['passwd']."<br />";
+				echo "IsEmployee: ".$result['is_employee']."<br />";
+				echo "IsActive: ".$result['is_active']."<br />";
+				echo "ID: ".$result['id']."<br />";
+				echo "PWRecoverID: ".$result['pw_recover_id']."<br />";
+			}
+			
 			$connection = null;
 			return $result;
 		} catch ( PDOException $e ) {
-			echo "<br />Connect Error: ". $e->getMessage();
+			echo "<br />Connect Error (getUserDataFromEmail): ". $e->getMessage();
 			return array();
 		}
 	}

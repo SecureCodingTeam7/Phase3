@@ -1,4 +1,5 @@
 <?php
+ini_set( 'session.cookie_httponly', 1 );
 include_once(__DIR__."/../class/c_user.php");
 include_once(__DIR__."/../include/helper.php");
 $loginPage = "../login.php";
@@ -19,7 +20,7 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 	/* Session Data Invalid -> Redirect to Login */
 	//header($loginRedirectHeader);
 } 
- else if($_SESSION['user_level']){
+ else if ( $_SESSION['user_level'] ) {
 		header("Location: ../login.php");
 		die();
 	}
@@ -30,7 +31,23 @@ else {
 	$user->getUserDataFromEmail( $_SESSION['user_email'] );
 	
 	if ( isset( $_SESSION['selectedAccount'] ) ) {
-		$selectedAccount = $_SESSION['selectedAccount'];
+		
+		/* Make sure account belongs to user */
+		$accounts = $user->getAccounts();
+		if(in_array($_SESSION['selectedAccount'], $accounts)) {
+			$selectedAccount = $_SESSION['selectedAccount'];
+		} else {
+			/* Possible malicious activity: Account does not belong to user
+			 * Raise Session Error and close the session
+			 */
+			$_SESSION['error'] =  "Account mismatch detected.";
+		}
+	}
+	
+	/* If error or possible malicious activity was detected close the session */
+	if ( ( isset( $_SESSION['error'] ) ) ) {
+		header("Location:../logout.php");
+		die();
 	}
 ?>
 <!doctype html>

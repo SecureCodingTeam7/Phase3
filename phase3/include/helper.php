@@ -9,6 +9,23 @@ function randomDigits( $length ) {
 	return $digits;
 }
 
+function isValidEmail( $email ){
+	return filter_var($email, FILTER_VALIDATE_EMAIL);
+}
+
+function generateFormToken() {
+	return hash( 'sha256', openssl_random_pseudo_bytes(32) );
+	//return md5(md5(uniqid().uniqid().mt_rand()));
+}
+
+function validateFormToken( $POSTToken ) {
+	if ( isset ($_SESSION['CSRFToken']) && ($_SESSION['CSRFToken'] == $POSTToken )) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
 function uploadFile($file) {
 	// $_FILES["uploadFile"]["name"]
 	$target_dir = __DIR__."/../uploads/";
