@@ -85,6 +85,7 @@ if( !(isset( $_POST['checkLogin'] ) ) ) { ?>
 			$_SESSION['user_email'] = $user->email;
 			$_SESSION['user_level'] = $user->isEmployee;
 			$_SESSION['user_login'] = 1;
+			session_write_close();
 			
 			if($user->isEmployee) {
 				header("Location: employee/approve.php");

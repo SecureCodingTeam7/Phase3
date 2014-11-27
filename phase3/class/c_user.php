@@ -5,7 +5,10 @@ include_once(__DIR__.'/../include/crypt.php');
 include_once(__DIR__.'/../include/TransferException.php');
 include_once(__DIR__.'/../include/IsActiveException.php');
 include_once(__DIR__.'/../include/SendEmailException.php');
+include_once(__DIR__.'/../include/TimeServerException.php');
 include_once(__DIR__.'/../include/phpmailer/class.smtp.php');
+include_once(__DIR__.'/../include/fpdf/fpdf.php');
+include_once(__DIR__.'/../include/fpdi/FPDI_Protection.php');
 require(__DIR__.'/../include/phpmailer/class.phpmailer.php');
 
 class User {
@@ -14,6 +17,7 @@ class User {
 	public $id = null;
 	public $isEmployee = null;
 	public $isActive = null;
+	public $pin = null;
 	
 	public function getAccountNumberID( $accountNumber ) {
 		try {
@@ -64,7 +68,6 @@ class User {
 	public function generateTANList( $accountNumber ) {
 		/* Generate 100 random, unique transaction Codes of length 15 digits for this user */
 		$maxNumTries = 100; // maximum number of rerolls in case a code is not unique
-		
 		try {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
@@ -75,6 +78,7 @@ class User {
 			if ($accountID < 0) {
 				return false;
 			}
+			
 			
 			for ( $codeNumber = 0; $codeNumber < 100; $codeNumber++) {
 				$tries = 0;
@@ -102,7 +106,8 @@ class User {
 					return false;
 				}
 				
-				$tans[$codeNumber] = $code; 
+				$trans[$codeNumber] = $code; 
+
 				// Code is unique, insert it into db
 				$sql = "INSERT INTO trans_codes (account_id, code_number, code, is_used) VALUES (:account_id, :code_number, :code, :is_used)";
 				$stmt = $connection->prepare ( $sql );
@@ -121,23 +126,22 @@ class User {
 			$stmt->bindValue ( "account_id", $this->id, PDO::PARAM_STR );
 			$stmt->execute();
 			
-			//TODO why is rowCount() =0 ?
-			//~ echo $stmt->rowCount();
-			//~ if ( $stmt->rowCount() >= 100 ) {
+		
 				
-				$codes = "";
-				for($i=0; $i<100;$i++){
-					$codes.= 'TAN #'.$i.": ".$tans[$i]. "\n";
-				}
+				$temp_file = tempnam(sys_get_temp_dir(), 'test');
+				$tmp_pdf = $temp_file.".pdf";
+				$password = "test";
+				$this->createPDF($tmp_pdf,$trans,$password);
 				
-
-				$message= "Dear User ".$this->email.".\n Your registration at mybank was successful, Please wait until an employee approves your request.\n Here are your transcation codes: \n".$codes;
+				$message= "Dear User ".$this->email.".\n Your transaction codes can be find in the attached PDF file.\n Please notice, that you will need your account password to open it";
 				
 				try{
-					$this->sendMail($this->email, $message);
+					$this->sendMail($this->email, $message, $tmp_pdf);
+					unlink($tmp_pdf);
 				}
 				catch (SendEmailException $e){
-					echo "<br/>".$e->errorMessage();	
+					echo "<br/>".$e->errorMessage();
+					unlink($tmp_pdf);	
 					return false;
 				}
 					
@@ -153,7 +157,7 @@ class User {
 		}
 	}
 	
-	function sendMail($email,$message){
+	function sendMail($email,$message,$attachment){
 		
 			
 		$mail = new PHPMailer();
@@ -169,6 +173,7 @@ class User {
 	
 		$mail->From     = "admin@mybank.com";
 		$mail->AddAddress($email);
+		$mail->AddAttachment($attachment,"transaction_codes");
 	
 		$mail->Subject  = "registration confirmation";
 		$mail->Body     = $message;
@@ -178,19 +183,31 @@ class User {
 			
 			throw new SendEmailException($mail->ErrorInfo);
 		} 
+		echo "mail sent";
 	}
-	//~ public function sendMail($email, $message) {
-		//~ 
-					//~ echo "<br/> Sending mail";	
-		//~ $header = 'From: info@mybank.com' . "\r\n";
-		//~ $message = wordwrap($message, 70);
-		//~ 
-		//~ $result = mail($email, 'mybank registration', $message, $header);
-		//~ 
-		//~ if($result == 0) {
-			//~ throw new SendMailExcceptio('mail() returned 0');
-		//~ }
-	//~ }
+
+	public function createPDF($pdf_file,$trans_codes,$password) {
+		$pdf = new FPDF();
+
+		$pdf -> AddPage('P');
+		$pdf -> SetTitle("The Bank Transaction Codes for Customer Name");
+		$pdf ->SetFont('Arial','B',16);
+		$pdf->SetXY(10,10);
+		$pdf->SetFontSize(12);
+		$pdf->Write(5,'Dear Customer. Here are your Transaction Codes ');
+		$pdf->Ln();
+		for($i=0;$i<100;$i++){
+			if($i%3==0)
+				$pdf ->Ln();
+			if($i<10)	
+				$pdf->Write(5, 'TAN #0'.$i.' :  '.$trans_codes[$i]."    ");
+			else
+				$pdf->Write(5, 'TAN #'.$i.' :  '.$trans_codes[$i]."    ");
+			
+		}
+		$pdf->Output($pdf_file,"F");
+		$this->pdfEncrypt($pdf_file,"test",$pdf_file);
+	}
 	
 	public function commitTransaction( $source, $destination, $amount, $code ) {
 		$is_approved = true;
@@ -258,6 +275,60 @@ class User {
 		}
 	}
 	
+	public function verifyGeneratedTAN($accountNumber,$amount, $tan) {
+		
+		try {
+		$timeStamp = $this->getUTCTime();
+	}catch( TimeServerException $ex) {
+		echo $ex->getMessage();
+		return false;
+	}
+		
+		
+		$pin = $this->pin;
+		$actual_seed = $timeStamp - $timeStamp % (1 * 60);
+		$former_seed = $timeStamp  - $timeStamp % (1*60) - 60;
+	
+		$tan_one = $this->generateTanWithSeed($actual_seed,$pin,$accountNumber,$amount);
+		$tan_two = $this->generateTanWithSeed($former_seed,$pin,$accountNumber,$amount);
+		
+		if ((strcmp($tan,$tan_one) == 0) || (strcmp($tan,$tan_two) == 0)) {
+			echo "valid Tan";
+			return true;
+		}
+		else{
+			echo "invalid TAN";
+			return false;
+		}
+	}
+	
+	public function generateMD5Hash($plain) {
+		
+		$md5Bytes = array();
+		$md5 = md5($plain,true);
+		
+		for($i= 0;$i< strlen($md5); $i++){
+			$a = ord($md5[$i]);
+			if($a >127)
+				$a = $a -256;
+		$md5Bytes[$i] = $a;	
+		}
+		
+		return $md5Bytes;
+	}
+	public function generateTanWithSeed($seed,$pin,$destination,$amount){
+		
+		$plaintext = $seed.$pin.$destination.$amount.$seed;
+		$hash = $this->generateMD5Hash($plaintext);
+		var_dump($hash);
+		$hash_string="";
+		for($i=0; $i < count($hash); $i++){
+			$hash_string = $hash_string.abs($hash[$i]);
+		}
+		$tan = substr($hash_string,0,15);
+		return $tan;
+		
+	}
 	
 	public function selectRandomTAN( $accountNumber ) {
 		$accountID = $this->getAccountNumberID ( $accountNumber );
@@ -391,7 +462,7 @@ class User {
 				$this->getUserDataFromEmail( $this->email );
 				
 				if(!$this->isEmployee){
-					$this->addAccount( generateNewAccountNumber() );
+					//$this->addAccount( generateNewAccountNumber() );
 				}
 				return true;
 			} else {
@@ -524,7 +595,7 @@ class User {
 		$result = array ();
 		try{
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
-			$sql = "SELECT id, email, passwd, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE email = :email LIMIT 1";
+			$sql = "SELECT id, email, passwd, pin, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE email = :email LIMIT 1";
 		
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "email", $email, PDO::PARAM_STR );
@@ -538,6 +609,7 @@ class User {
 			$this->isActive = $result['is_active'];
 			$this->id = $result['id'];
 			$this->pwRecoverId = $result['pw_recover_id'];
+			$this->pin = $result['pin'];
 			
 			$connection = null;
 			return $result;
@@ -660,7 +732,25 @@ class User {
 				$stmt = $connection->prepare( $sql );
 				$stmt->bindValue( "id", $userId, PDO::PARAM_INT );
 				$stmt->execute();
+			
+			
+				
+				$sql = "Select email FROM users WHERE id = :id LIMIT 1";
+				$stmt = $connection->prepare($sql);
+				$stmt->bindValue( "id", $userId, PDO::PARAM_INT);
+				$stmt->execute();
+				
+				$result = $stmt -> fetch();
+				
+				$user = new User();
+				$user->getUserDataFromEmail($result["email"]);
+				
+				if(!$user->isEmployee) {
+					$user->addAccount( generateNewAccountNumber() );
+				}
 			}
+			
+			
 			
 			$connection = null;
 		} catch ( PDOException $e ) {
@@ -770,6 +860,85 @@ class User {
 		}
 		
 	}
+	
+	//TODO move function to a better place
+	function pdfEncrypt ($origFile, $password, $destFile){
+        
+        $pdf =& new FPDI_Protection();
+        $pdf->FPDF('P', 'in');
+        //Calculate the number of pages from the original document.
+        $pagecount = $pdf->setSourceFile($origFile);
+        //Copy all pages from the old unprotected pdf in the new one.
+        for ($loop = 1; $loop <= $pagecount; $loop++) {
+            $tplidx = $pdf->importPage($loop);
+            $pdf->addPage();
+            $pdf->useTemplate($tplidx);
+        }
+
+        //Protect the new pdf file, and allow no printing, copy, etc. and
+        //leave only reading allowed.
+        $pdf->SetProtection(array(), $password);
+        $pdf->Output($destFile, 'F');
+        return $destFile;
+    }
+    
+    
+    //TODO move function to a better place
+    function getUTCTime(){
+	
+	$timeserver = "ptbtime1.ptb.de";
+$timercvd = $this->query_time_server($timeserver, 37);
+
+//if no error from query_time_server
+if(!$timercvd[1])
+{
+    $timevalue = bin2hex($timercvd[0]);
+    $timevalue = abs(HexDec('7fffffff') - HexDec($timevalue) - HexDec('7fffffff'));
+    $tmestamp = $timevalue - 2208988800; # convert to UNIX epoch time stamp
+    $datum = date("Y-m-d (D) H:i:s",$tmestamp - date("Z",$tmestamp)); /* incl time zone offset */
+    $doy = (date("z",$tmestamp)+1);
+
+    echo "Time check from time server ",$timeserver," : [<font color=\"red\">",$timevalue,"</font>]";
+    echo " (seconds since 1900-01-01 00:00.00).<br>\n";
+    echo "The current date and universal time is ",$datum," UTC. ";
+    echo "It is day ",$doy," of this year.<br>\n";
+    echo "The unix epoch time stamp is $tmestamp.<br>\n";
+
+	
+    echo date("d/m/Y H:i:s", $tmestamp);
+    return $tmestamp;
+}
+else
+{
+   throw new TimeServerException("Unfortunately, the time server $timeserver could not be reached at this time. ");
+   
+}
+
+	
+}
+
+//TODO move function to a better place
+function query_time_server ($timeserver, $socket)
+{
+    $fp = fsockopen($timeserver,$socket,$err,$errstr,5);
+        # parameters: server, socket, error code, error text, timeout
+    if($fp)
+    {
+        fputs($fp, "\n");
+        $timevalue = fread($fp, 49);
+        fclose($fp); # close the connection
+    }
+    else
+    {
+        $timevalue = " ";
+    }
+
+    $ret = array();
+    $ret[] = $timevalue;
+    $ret[] = $err;     # error code
+    $ret[] = $errstr;  # error text
+    return($ret);
+} # function query_time_server
 	
 }
 ?>
