@@ -100,10 +100,19 @@ if( isset($_GET['email']) && isset($_GET['id']) ) {
 		        </div>
 		
 		        <div class="pure-controls">
-		            <button id="SignInButton" type="submit" name="recoverPassword" class="pure-button pure-button-primary">Send new Password</button>
+		            <button id="SignInButton" onclick="setTimeout(disableFunction, 1)" type="submit" name="recoverPassword" class="pure-button pure-button-primary">Send new Password</button>
 		        </div>
+		        
+		        
 		    </fieldset>
 			</form>
+			
+			
+	<script>
+		function disableFunction() {
+		    document.getElementById("SignInButton").disabled = 'true';
+		}
+	</script>
 
 
 	    

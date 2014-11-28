@@ -285,7 +285,7 @@ function query_time_server ($timeserver, $socket)
 			
 		}
 		$pdf->Output($pdf_file,"F");
-		pdfEncrypt($pdf_file,"test",$pdf_file);
+		pdfEncrypt($pdf_file,$password,$pdf_file);
 	}
 
 function isActiveUser( $userID ) {

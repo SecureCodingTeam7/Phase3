@@ -133,7 +133,10 @@ else {
 			<form method="post" action="">
 				<input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
 				<input type="hidden" name="accountNumber" value="<?php echo $account; ?>" />
-				<input type="submit" name="selectAccount" class="pure-button pure-button-active" value="<?php echo $account; ?> [Select]" <?php if (isset($_SESSION['selectedAccount']) && ( $account == $_SESSION['selectedAccount'])) echo "style=\"background: rgb(223, 117, 20);\"";?>/>
+				<input type="submit" name="selectAccount" class="pure-button pure-button-active" value="<?php echo $account; ?>" 
+				<?php if (isset($_SESSION['selectedAccount']) && ( $account == $_SESSION['selectedAccount'])) echo "style=\"width: 170px; background: rgb(223, 117, 20);\"";
+						else { echo "style=\"width: 160px;\""; }
+				?>/>
 			</form>
 			<?php
 		}

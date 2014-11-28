@@ -20,6 +20,7 @@ class User {
 	public $isEmployee = null;
 	public $isActive = null;
 	public $pin = null;
+	public $useScs = null;
 	public $DEBUG = false;
 	
 	public function getAccountNumberID( $accountNumber ) {
@@ -129,13 +130,13 @@ class User {
 			
 			$temp_file = tempnam(sys_get_temp_dir(), 'test');
 			$tmp_pdf = $temp_file.".pdf";
-			$password = "test";
-			createPDF($tmp_pdf,$tans,$password);
 			
-			$message= "Dear User ".$this->email.".\n Your transaction codes can be find in the attached PDF file.\n Please notice, that you will need your account password to open it";
+			createPDF($tmp_pdf,$tans,$this->pin);
+			
+			$message= "Dear ".$this->name.".\n Your transaction codes can be find in the attached PDF file.\n Please notice, that you will need your account password to open it";
 
 			try{
-				$this->sendMail($this->email, $message, $tmp_pdf);
+				$this->sendMailWithAttachment($this->email, $message, "TAN Codes", $tmp_pdf);
 				unlink($tmp_pdf);
 			}
 			catch (SendEmailException $e){
@@ -155,11 +156,13 @@ class User {
 		}
 	}
 	
-	function sendMail($email,$message,$attachment){
-		
+	function sendMail($email,$message,$subject) {
+		$this->sendMailWithAttachment($email,$message,$subject,"");
+	}
+	
+	function sendMailWithAttachment($email,$message,$subject,$attachment){
 			
 		$mail = new PHPMailer();
-	
 		$mail->IsSMTP(); // enable SMTP
 		$mail->SMTPDebug = 0;  // debugging: 1 = errors and messages, 2 = messages only
 		$mail->SMTPAuth = true;  // authentication enabled
@@ -169,13 +172,17 @@ class User {
 		$mail->Username = "scteam07";
 		$mail->Password = "#team7#beste";
 	
-		$mail->From     = "admin@mybank.com";
+		$mail->From     = "noreply@mybank.com";
+		$mail->FromName = 'mybank Service';
 		$mail->AddAddress($email);
-		$mail->AddAttachment($attachment,"transaction_codes");
+		
+		if($attachment != "") {
+			$mail->AddAttachment($attachment,"transaction_codes");
+		}
 	
-		$mail->Subject  = "registration confirmation";
+		$mail->Subject  = $subject;
 		$mail->Body     = $message;
-		$mail->WordWrap = 50;
+		$mail->WordWrap = 200;
 	
 		if(!$mail->Send()) {
 			
@@ -495,6 +502,15 @@ class User {
 		} else {
 			throw new InvalidInputException("Please select whether you are an Employee or Client.");
 		}
+		
+		if( isset( $data['use_scs'] ) ) {
+			$this->useScs = stripslashes( strip_tags( $data['use_scs'] ) );
+			if ($this->useScs != 1 && $this->useScs != 0) {
+				throw new InvalidInputException("SCS Value is invalid.");
+			}
+		} else {
+			throw new InvalidInputException("Please select whether you use scs or not.");
+		}
 
 
 		// Input seems valid, proceed with registration
@@ -510,16 +526,22 @@ class User {
 		
 		
 		try{
+			// PW for PDF files or PIN for SCS
+			$pin = randomDigits(6);
+			
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 	 
-			$sql = "INSERT INTO users (email,name,passwd,is_employee,is_active) VALUES (:email,:name,:password,:isEmployee,:isActive)";
+			$sql = "INSERT INTO users (email,name,passwd,is_employee,is_active,pin,use_scs) VALUES (:email,:name,:password,:isEmployee,:isActive,:pin,:use_scs)";
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "email", $this->email, PDO::PARAM_STR );
 			$stmt->bindValue( "name", $this->name, PDO::PARAM_STR );
 			$stmt->bindValue( "password", generateSaltedHash($this->password), PDO::PARAM_STR );
 			$stmt->bindValue( "isEmployee", $this->isEmployee, PDO::PARAM_STR );
 			$stmt->bindValue( "isActive", false, PDO::PARAM_STR );
+			$stmt->bindValue( "pin", $pin, PDO::PARAM_STR );
+			$stmt->bindValue( "use_scs", $this->useScs, PDO::PARAM_STR );
+			
 			$stmt->execute();
 				
 			$connection = null;
@@ -528,7 +550,8 @@ class User {
 				$this->getUserDataFromEmail( $this->email );
 				
 				if(!$this->isEmployee){
-					//$this->addAccount( generateNewAccountNumber() );
+					$message = "Dear ".$this->name.".\nYour registration at mybank was successful. Here is your Personal Identification Number: ".$this->pin."\nYou can use this to open the PDF file with your TAN codes. Alternatively you can use it to generate your TAN codes via our SCS (Smart Card Simulator) tool, depending on what you chose at registration.";
+					$this->sendMail($this->email, $message, "Registration successful");
 				}
 				return true;
 			} else {
@@ -659,9 +682,14 @@ class User {
 	
 	public function getUserDataFromEmail( $email ) {
 		$result = array ();
+		
+		if (!isValidEmail( $email )) {
+			throw new InvalidInputException("Email address invalid. Please check the Email address.");
+		}
+		
 		try{
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
-			$sql = "SELECT id, name, email, passwd, pin, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE email = :email LIMIT 1";
+			$sql = "SELECT id, name, use_scs, email, passwd, pin, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE email = :email LIMIT 1";
 		
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "email", $email, PDO::PARAM_STR );
@@ -677,6 +705,7 @@ class User {
 			$this->id = $result['id'];
 			$this->pwRecoverId = $result['pw_recover_id'];
 			$this->pin = $result['pin'];
+			$this->useScs = $result['use_scs'];
 			
 			if ($this->DEBUG) {
 				echo "<br />===================================================<br />";
@@ -702,7 +731,7 @@ class User {
 		$result = array ();
 		try{
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
-			$sql = "SELECT id, name, email, passwd, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE id = :id LIMIT 1";
+			$sql = "SELECT id, name, email, passwd, use_scs, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE id = :id LIMIT 1";
 	
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "id", $id, PDO::PARAM_STR );
@@ -717,7 +746,8 @@ class User {
 			$this->isActive = $result['is_active'];
 			$this->id = $result['id'];
 			$this->pwRecoverId = $result['pw_recover_id'];
-				
+			$this->useScs = $result['use_scs'];
+			
 			if ($this->DEBUG) {
 				echo "<br />===================================================<br />";
 				echo "Call: getUserDataFromEmail() for ".$email.":<br />";
@@ -987,10 +1017,10 @@ class User {
 			
 			// Send the mail
 			
-			$message= "Dear User ".$this->email.".\n You requested a new password. Please click on this link to get a new password via email: phase3/pw_recovery?email=$this->email&id=$pwRecoverId";
+			$message= "Dear ".$this->name.".\n You requested a new password. Please click on this link to get a new password via email: phase3/pw_recovery?email=$this->email&id=$pwRecoverId";
 				
 			
-			$this->sendMail($this->email, $message);
+			$this->sendMail($this->email, $message, "Password Recovery");
 			
 		} catch ( PDOException $e ) {
 			echo "<br />Connect Error: ". $e->getMessage();
@@ -998,6 +1028,9 @@ class User {
 	}
 	
 	public function doPwRecovery($id) {
+		
+		if(!is_numeric($id))
+			return false;
 		if(strcmp($this->pwRecoverId, $id) == 0) {
 			$newPassword = randomDigits(8);
 			
@@ -1014,9 +1047,9 @@ class User {
 			
 				// Send the mail
 			
-				$message= "Dear User ".$this->email.".\n Your new Password is: $newPassword";
+				$message= "Dear ".$this->name.".\n Your new Password is: $newPassword";
 				
-				$this->sendMail($this->email, $message);
+				$this->sendMail($this->email, $message, "Password Recovery");
 				
 				return true;
 			

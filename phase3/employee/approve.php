@@ -172,13 +172,18 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 
 		<br>
 		<div class="pure-controls">
-            <button id="approveButton" type="submit" name="approve" class="pure-button pure-button-primary">Approve</button>
+            <button id="approveButton" onclick="setTimeout(disableFunction, 1)" type="submit" name="approve" class="pure-button pure-button-primary">Approve</button>
 		</div>
 		</form>
 		</div>
 		</div>
 	</div>
-</body>
+	<script>
+		function disableFunction() {
+		    document.getElementById("approveButton").disabled = 'true';
+		}
+	</script>
+</body
 </html>
 
 <?php

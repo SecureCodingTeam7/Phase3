@@ -36,17 +36,17 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		            <label for="email">Email</label>
 		            <input name="email" id="email" type="email" placeholder="YourAccount@bank.de" required>
 		        </div>
-		
-		        <div class="pure-control-group">
-		            <label for="password">Password</label>
-		            <input name="password" id="password" type="password" placeholder="***********" onkeyup="check_pw()" required>
-		            <b id=password_info></b>
-		        </div>
 		        
 		        <div class="pure-control-group">
 		            <label for="username">Name</label>
 		            <input name="username" id="username" type="text" placeholder="Name" onkeyup="check_un()" required>
 		            <b id=un_info></b>
+		        </div>
+		
+		        <div class="pure-control-group">
+		            <label for="password">Password</label>
+		            <input name="password" id="password" type="password" placeholder="***********" onkeyup="check_pw()" required>
+		            <b id=password_info></b>
 		        </div>
 		        
 		        <div class="pure-control-group">
@@ -60,6 +60,14 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		        <select id="state" name="status" size="1">
 				<option value="0">Client</option>
 				<option value="1">Employee</option>
+			    </select>
+		        </div> 
+		        
+		        <div id="use_scs_div" class="pure-control-group">
+				<label id="use_scs_label" for="use_scs">TAN method</label>
+		        <select id="use_scs" name="use_scs" size="1">
+				<option value="0">Email: PDF List</option>
+				<option value="1">SCS</option>
 			    </select>
 		        </div> 
 		        
@@ -148,21 +156,19 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 			submit_button.disabled = true;
 			un_info.textContent = "Your name must be at least 4 characters long."
 		}
-
-
-		
-/*
-		if (un_field.value.search("[A-Z]") == -1) {
-			submit_button.disabled = true;
-			un_info.textContent = "Your name must start with an uppercase letter."
-		}
-
-		if (un_field.value.search("[a-z]" == -1) {
-			submit_button.disabled = true;
-			un_info.textContent = "Not a valid name."
-		}
-		*/
 	}
+	
+	var sel = document.getElementById('state');
+	sel.onchange = function() {
+		toggle_visibility("use_scs_div")
+	}
+	
+	function toggle_visibility(cl){
+		var els = document.getElementById(cl);
+		var s = els.style;
+		s.display = s.display==='none' ? 'block' : 'none'
+	}
+	
 </script>
 </html>
 <?php 
