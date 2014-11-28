@@ -906,6 +906,24 @@ class User {
 		}
 	}
 	
+	public function getBalanceForAccount( $accountNumber ) {
+		try{
+			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+			$sql = "SELECT balance FROM accounts WHERE account_number = :accountNumber";
+		
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "accountNumber", $accountNumber, PDO::PARAM_INT );
+			$stmt->execute();
+		
+			$result = $stmt->fetch();
+			$connection = null;
+			return $result['balance'];
+		} catch ( PDOException $e ) {
+			echo "<br />Connect Error: ". $e->getMessage();
+			return -1;
+		}
+	}
+	
 	public function sendPwRecoveryMail() {
 		
 		$pwRecoverId = randomDigits(15);

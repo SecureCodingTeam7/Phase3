@@ -15,7 +15,7 @@ CREATE TABLE `accounts` (
   `user_id` int(11) NOT NULL,
   `account_number` varchar(10) NOT NULL,
   `next_tan` int(11) NOT NULL,
-  `balance` int(11) NOT NULL,
+  `balance` double NOT NULL,
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   CONSTRAINT `accounts_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
@@ -477,4 +477,4 @@ INSERT INTO `users` (`id`, `email`, `name`, `passwd`, `salt`, `is_employee`, `is
 (24,	'tattioff42+user3@gmail.com',	'Third User',	'$2a$07$br9SKxBgPyjo77ECXplSEuBj5TdKbDZBsw7YQOqd0N2ndtLzMsNYm',	'',	CONV('0', 2, 10) + 0,	CONV('0', 2, 10) + 0,	''),
 (25,	'tattioff42+user4@gmail.com',	'Fourth User',	'$2a$07$UJ8mivY6K7UHey4l1Wuyze39NxFF1NZ1N7ozlmwrFrO5p2ds.t7Pa',	'',	CONV('0', 2, 10) + 0,	CONV('0', 2, 10) + 0,	'');
 
--- 2014-11-28 11:10:19
+-- 2014-11-28 11:35:19

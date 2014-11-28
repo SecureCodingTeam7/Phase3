@@ -108,12 +108,13 @@ else {
 					<a href="history.php">History</a>
 				</div>
 				
+				<div class="balance"><?php if ($selectedAccount > 0) { echo "Account Balance: ".$user->getBalanceForAccount( $selectedAccount );}?></div>
 				<div class="userpanel">
 					<?php echo $_SESSION['user_email'] ?>
 					<a href="../logout.php">Logout</a><br />
 					<?php 
 					if ($selectedAccount > 0) {
-					echo "Account: ".$_SESSION['selectedAccount'];	
+					echo "Account: ".$_SESSION['selectedAccount'];
 					} else {
 					echo "Account: none";
 					}
