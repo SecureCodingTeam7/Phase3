@@ -1,4 +1,5 @@
 <?php
+ini_set( 'session.cookie_httponly', 1 );
 include_once(__DIR__."/include/db_connect.php"); 
 include_once(__DIR__."/class/c_user.php");
 session_start();

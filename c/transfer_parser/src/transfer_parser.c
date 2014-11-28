@@ -13,8 +13,13 @@
 #include <string.h>
 #include <mysql.h>
 
+#include "ntp.h"
+#include "md5.h"
+
 typedef struct transfer_details {
-	char dest_acc_number[10];
+	char dest_acc_number[11];
+	// needed for generated hash
+	char amount_str[11];
 	double amount;
 } transfer_details;
 
@@ -78,7 +83,7 @@ int check_acc_number(MYSQL_STMT *stmt, char acc_number[11]) {
 
 	mysql_stmt_free_result(stmt);
 
-	printf("result: %ld\n", rcount);
+	//printf("result: %ld\n", rcount);
 
 	if(rcount != 1) {
 		printf("Account number not found!\n");
@@ -231,9 +236,70 @@ int test_code(MYSQL_STMT *stmt, char code[16], char src[11], long requested_code
 	return 0;
 }
 
-int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[16], double amount) {
+int update_balance(MYSQL_STMT *stmt, char *acc_number, double amount, int addition) {
+	MYSQL_BIND param[2];
+
+	if(stmt == NULL)
+	{
+		printf("Could not initialize statement\n");
+		return 6;
+	}
+
+	char *sql;
+
+	if(addition) {
+		sql = "update accounts set balance = balance + ? where account_number = ?";
+	} else {
+		sql = "update accounts set balance = balance - ? where account_number = ?";
+	}
+
+	if(mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+		printf("Could not prepare statement\n");
+		printf("error: %s\n", mysql_stmt_error(stmt));
+		return 7;
+	}
+
+	memset(param, 0, sizeof(param));
+	param[0].buffer_type = MYSQL_TYPE_DOUBLE;
+	param[0].buffer = (void *) &amount;
+
+	// TODO why is a copy neccessary??
+	char tmp[11];
+	strncpy(tmp, acc_number, 11);
+
+	param[1].buffer_type = MYSQL_TYPE_VARCHAR;
+	param[1].buffer = (void *) &tmp;
+	param[1].buffer_length = strlen(acc_number);
+
+	if(mysql_stmt_bind_param(stmt, param) != 0) {
+		printf("Could not bind parameters\n");
+		printf("error: %s\n", mysql_stmt_error(stmt));
+		return 8;
+	}
+
+	if(mysql_stmt_execute(stmt) != 0) {
+		printf("Execute failed\n");
+		return 10;
+	}
+
+	return 0;
+}
+
+int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[16], double amount, int update_tan) {
 	MYSQL_BIND param[5];
 
+	// update balances
+	int error;
+	if((error = update_balance(stmt, src, amount, 0))) {
+		printf("Could not update balance!");
+		return error;
+	}
+	if((error = update_balance(stmt, dest, amount, 1))) {
+		printf("Could not update balance!");
+		return error;
+	}
+
+	// insert into history
 	if(stmt == NULL)
 	{
 		printf("Could not initialize statement\n");
@@ -291,6 +357,8 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 		return 10;
 	}
 
+	if(!update_tan) return 0;
+
 	// mark code as used
 	sql = "update trans_codes set is_used = 1 where code = ?";
 
@@ -319,7 +387,215 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 	return 0;
 }
 
+void generate_tan_with_seed(char *tan, uint64_t seed, char *pin, char *dest, char *amount) {
+	char tmp[255];
+	memset(tmp, 0, 255);
+
+	snprintf(tmp, 255, "%lld%s%s%s%lld", seed, pin, dest, amount, seed);
+
+	char digest[16];
+	MD5_CTX context;
+	MD5_Init(&context);
+	MD5_Update(&context, tmp, strlen(tmp));
+	MD5_Final((unsigned char*)digest, &context);
+
+	int i;
+	for(i = 0; i < 16; i++) {
+		digest[i] = abs(digest[i]);
+	}
+
+	memset(tmp, 0, 255);
+
+	snprintf(tmp, 255, "%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d",
+			digest[0],
+			digest[1],
+			digest[2],
+			digest[3],
+			digest[4],
+			digest[5],
+			digest[6],
+			digest[7],
+			digest[8],
+			digest[9],
+			digest[10],
+			digest[11],
+			digest[12],
+			digest[13],
+			digest[14],
+			digest[15]);
+
+	memcpy(tan, tmp, 16);
+	tan[15] = '\0';
+
+}
+
+int check_generated_code(MYSQL_STMT *stmt, int user_id, char *user_tan, char *dest, char *amount) {
+	uint64_t cachedTime, cachedTimeRef, cacheCertainty;
+	ntpdate(&cachedTime, &cachedTimeRef, &cacheCertainty);
+
+	uint64_t seed_time = cachedTime / 1000;
+	uint64_t seed = seed_time - seed_time % (1 * 60);
+
+	// look up the PIN in the db storage
+	MYSQL_BIND param[1], result[1];
+	my_bool is_null[1];
+
+	if(stmt == NULL)
+	{
+		printf("Could not initialize statement\n");
+		return 6;
+	}
+
+	char *sql = "select pin from users where id = ?";
+
+	if(mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+		printf("Could not prepare statement\n");
+		return 7;
+	}
+
+	char pin[7];
+
+	memset(param, 0, sizeof(param));
+	memset(result, 0, sizeof(result));
+
+	param[0].buffer_type = MYSQL_TYPE_LONG;
+	param[0].buffer = (void *) &user_id;
+
+	result[0].buffer_type = MYSQL_TYPE_VAR_STRING;
+	result[0].buffer = (void *) &pin;
+	result[0].is_null = &is_null[0];
+	result[0].buffer_length = 7;
+
+	if(mysql_stmt_bind_param(stmt, param) != 0) {
+		printf("Could not bind parameters\n");
+		return 8;
+	}
+
+	if(mysql_stmt_bind_result(stmt, result) != 0) {
+		printf("Could not bind result\n");
+		printf("error1: %s\n", mysql_stmt_error(stmt));
+		return 9;
+	}
+
+	if(mysql_stmt_execute(stmt) != 0) {
+		printf("Execute failed\n");
+		return 10;
+	}
+
+	if(mysql_stmt_store_result(stmt) != 0) {
+		printf("Storing result failed\n");
+		return 10;
+	}
+
+	int error;
+	if((error = mysql_stmt_fetch(stmt)) != 0) {
+		if(error == MYSQL_NO_DATA) {
+			printf("NO DATA!\n");
+			return 12;
+		}
+		printf("Could not fetch result\n");
+		return 11;
+	}
+
+	mysql_stmt_free_result(stmt);
+
+	char tan[16];
+	generate_tan_with_seed(tan, seed, pin, dest, amount);
+	//printf("tan: %s \n", tan);
+	if(!strncmp(tan, user_tan, 15)) {
+		//printf("tan: %s \n", tan);
+		return 1;
+	}
+
+	uint64_t seed2 = seed_time - seed_time % (1 * 60) - 60;
+	generate_tan_with_seed(tan, seed2, pin, dest, amount);
+	//printf("tan: %s \n", tan);
+	if(!strncmp(tan, user_tan, 15)) {
+		//printf("tan: %s \n", tan);
+		return 1;
+	}
+
+	return 0;
+}
+
+int check_account_balance(MYSQL_STMT *stmt, double amount, char *acc_number) {
+	MYSQL_BIND param[1], result[1];
+	my_bool is_null[1];
+
+	if(stmt == NULL)
+	{
+		printf("Could not initialize statement\n");
+		return 6;
+	}
+
+	char *sql = "select balance from accounts where account_number = ?";
+
+	if(mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
+		printf("Could not prepare statement\n");
+		return 7;
+	}
+
+	double balance = 0;
+
+	memset(param, 0, sizeof(param));
+	memset(result, 0, sizeof(result));
+
+	// TODO why is a copy neccessary??
+	char tmp[11];
+	strncpy(tmp, acc_number, 11);
+
+	param[0].buffer_type = MYSQL_TYPE_VARCHAR;
+	param[0].buffer = (void *) &tmp;
+	param[0].buffer_length = strlen(acc_number);
+
+	result[0].buffer_type = MYSQL_TYPE_DOUBLE;
+	result[0].buffer = (void *) &balance;
+	result[0].is_null = &is_null[0];
+
+	if(mysql_stmt_bind_param(stmt, param) != 0) {
+		printf("Could not bind parameters\n");
+		return 8;
+	}
+
+	if(mysql_stmt_bind_result(stmt, result) != 0) {
+		printf("Could not bind result\n");
+		printf("error: %s\n", mysql_stmt_error(stmt));
+		return 9;
+	}
+
+	if(mysql_stmt_execute(stmt) != 0) {
+		printf("Execute failed\n");
+		return 10;
+	}
+
+	if(mysql_stmt_store_result(stmt) != 0) {
+		printf("Storing result failed\n");
+		return 10;
+	}
+
+	int error;
+	if((error = mysql_stmt_fetch(stmt)) != 0) {
+		if(error == MYSQL_NO_DATA) {
+			printf("NO DATA!\n");
+			return 12;
+		}
+		printf("Could not fetch result\n");
+		return 11;
+	}
+
+	mysql_stmt_free_result(stmt);
+
+	// double comparison -> min. threshold
+	if(balance - amount > 0.0001) {
+		return 0;
+	}
+
+	printf("Balance too low");
+	return 232;
+}
+
 int main(int argc, char **argv) {
+
 	if(argc != 5) {
 		printf("Usage: %s user_id src_acc_number code_number [file path]", argv[0]);
 		return EXIT_SUCCESS;
@@ -333,7 +609,7 @@ int main(int argc, char **argv) {
 	}
 
 	char *buffer;
-	unsigned int buffer_len;
+	unsigned int buffer_len = 0;
 	char *src = argv[2];
 	char dest[11] = {'\0'}, amount[11] = {'\0'};
 	char code[16] = {'\0'};
@@ -409,6 +685,7 @@ int main(int argc, char **argv) {
 			}
 
 			memcpy(transfers[transfer_count].dest_acc_number, dest, 11);
+			memcpy(transfers[transfer_count].amount_str, amount, 11);
 			transfers[transfer_count].amount = famount;
 
 			transfer_count++;
@@ -473,12 +750,20 @@ int main(int argc, char **argv) {
 
 	int error;
 
-	// first check the code
 	MYSQL_STMT *stmt = mysql_stmt_init(db);
-	if((error = test_code(stmt, code, src, code_number, user_id))) {
-		return error;
+
+	// first check the code
+	if(code_number < 0) {
+		if(check_generated_code(stmt, user_id, code, transfers[0].dest_acc_number, transfers[0].amount_str) != 1) {
+			printf("Wrong generated SCS code!\n");
+			return 32;
+		}
+	} else {
+		if((error = test_code(stmt, code, src, code_number, user_id))) {
+			return error;
+		}
+		mysql_stmt_close(stmt);
 	}
-	mysql_stmt_close(stmt);
 
 	// then the src acc number
 	stmt = mysql_stmt_init(db);
@@ -499,10 +784,14 @@ int main(int argc, char **argv) {
 		if((error = check_acc_number(stmt, transfers[i].dest_acc_number))) {
 			return error;
 		}
+		stmt = mysql_stmt_init(db);
+		if((error = check_account_balance(stmt, transfers[i].amount, src))) {
+			return error;
+		}
 		mysql_stmt_close(stmt);
 
 		stmt = mysql_stmt_init(db);
-		if((error = insert_transaction(stmt, src, transfers[i].dest_acc_number, code, transfers[i].amount))) {
+		if((error = insert_transaction(stmt, src, transfers[i].dest_acc_number, code, transfers[i].amount, code_number > 0))) {
 			return error;
 		}
 		mysql_stmt_close(stmt);

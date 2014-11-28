@@ -1,0 +1,55 @@
+# Create DB User with limited Privileges.
+	- user: mybankRoot
+	- pw: 74VKxSYk8B6g
+	- only access to mybank DB
+	- SELECT, UPDATE, INSERT on TABLES and COLUMNS
+	- Specify this user in conf.php
+	
+# Move binary and source code for c program outside /var/www
+	- suggest moving binary to bin and deleting source
+	- make sure apache has execution permission on binary
+	- adjust call to executable in upload.php Line 59 accordingly:
+	  current: $command = "./transfer_parser ".$user->id." ".$selectedAccount." ".$user->getNextTan($selectedAccount)." ".$_FILES['myfile']['tmp_name']." 2>&1";
+	  new: $command = "transfer_parser ".$user->id." ".$selectedAccount." ".$user->getNextTan($selectedAccount)." ".$_FILES['myfile']['tmp_name']." 2>&1";
+	- maybe make call fixed length or do some more input validation.
+	
+# Add to apache config (httpd.conf, httpd-ssl.conf) or .htaccess:
+<IfModule php5_module>
+    php_value session.cookie_httponly true
+</IfModule>
+
+# Anti CSRF Form (done)
+- Generate random "challenge" tokens that are associated with the user's current session
+- Then insert token into HTML Form as hidden field
+- On Form Validation verify the existence and correctness of this token.
+
+
+- Info by OWASP:
+ When a form is generated, the application should include a hidden input parameter.
+ Alternative generation algorithms include the use of 256-bit BASE64 encoded hashes.
+ Developers that choose this generation algorithm must make sure that there is randomness and uniqueness
+ utilized in the data that is hashed to generate the random token.
+ 
+In general, developers need only generate this token once for the current session. 
+After initial generation of this token, the value is stored in the session and is utilized 
+for each subsequent request until the session expires.
+
+ If the token was not found within the request or value is mismatch, 
+ then the request should be aborted, token should be reset and the event logged as a potential CSRF attack in progress.
+ 
+ # Integrate Balance into Transaction Logic (detuct and add to balance, disallow transfer if balance too low)
+
+# Let Employees initialize the Balance upon user approval
+
+# db insert for Name (register)
+
+# db insert of source_name and destination_name for transactions
+
+# SSL configuration example (into httpd.conf):
+<VirtualHost localhost:443>
+DocumentRoot "C:/xampp/htdocs/phase3n/phase3"
+ServerName localhost
+SSLEngine on
+SSLCertificateFile "C:/xampp/mybank.crt"
+SSLCertificateKeyFile "C:/xampp/mybank.key"
+</VirtualHost> 

@@ -74,6 +74,11 @@ p.selectedAccount {
 	z-index: 0; 
 }
 
+em {
+    font-style: italic;
+    color: black;
+}
+
 ul
 {
     list-style-type: none;

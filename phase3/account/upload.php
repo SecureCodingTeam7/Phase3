@@ -1,6 +1,6 @@
 
 <?php
-    
+	ini_set( 'session.cookie_httponly', 1 );
     include_once(__DIR__."/../class/c_user.php");
     include_once(__DIR__."/../include/helper.php");
     $loginPage = "../login.php";
@@ -9,6 +9,12 @@
     $accountRedirectHeader = "Location: ".$accountPage;
     
     session_start();
+    
+    /* Generate Form Token (valid for this session) */
+    if (!isset($_SESSION['CSRFToken'])) {
+    	$_SESSION['CSRFToken'] = generateFormToken();
+    }
+    
     if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isset($_SESSION['user_login']) ) {
         echo "Session Invalid. <a href='$loginPage'>Click here</a> to sign in.";
         
@@ -47,44 +53,51 @@
             
             
             if(isset($_POST['uploadFile'])){
-                
-                //~ $name       = "transactionFile";
-                //~ $temp_name  = $_FILES['myfile']['tmp_name'];
-                
-               $uploadStatus = $_FILES['myfile']['error'];
-
-				switch($uploadStatus){
-					case UPLOAD_ERR_OK:
-                
-                            $command = "./transfer_parser ".$user->id." ".$selectedAccount." ".$user->getNextTan($selectedAccount)." ".$_FILES['myfile']['tmp_name']." 2>&1";
-                            $result="";
-                            exec($command,$result,$return);
-
-                            if($return == 0 ){
-                                $uploadMessage=" Transaction commited";
-                                $user->updateNextTan( $selectedAccount);
-                                
-                            }
-      
-                            else {
-								
-                                $uploadMessage = "Error: ".$result[0];
-                            }
-                            break;
-                            
-                     case UPLOAD_ERR_INI_SIZE: 
-								$uploadMessage = " Error: uploaded file is too big";
-								break;
-                     default:
-							    $uploadMessage = " Error: please upload your file again"; 
-							    break;
-                        }
-                    
                
+            	if (isset( $_POST['CSRFToken']) && validateFormToken($_POST['CSRFToken'])) {
+	                //~ $name       = "transactionFile";
+	                //~ $temp_name  = $_FILES['myfile']['tmp_name'];
+	                
+	               $uploadStatus = $_FILES['myfile']['error'];
+	
+					switch($uploadStatus){
+						case UPLOAD_ERR_OK:
+	                
+	                            $command = "./transfer_parser ".$user->id." ".$selectedAccount." ".$user->getNextTan($selectedAccount)." ".$_FILES['myfile']['tmp_name']." 2>&1";
+	                            $result="";
+	                            exec($command,$result,$return);
+	
+	                            if($return == 0 ){
+	                                $uploadMessage=" Transaction commited";
+	                                $user->updateNextTan( $selectedAccount);
+	                                
+	                            }
+	      
+	                            else {
+									
+	                                $uploadMessage = "Error: ".$result[0];
+	                            }
+	                            break;
+	                            
+	                     case UPLOAD_ERR_INI_SIZE: 
+									$uploadMessage = " Error: uploaded file is too big";
+									break;
+	                     default:
+								    $uploadMessage = " Error: please upload your file again"; 
+								    break;
+					}
+	            } else {
+	            	$_SESSION['error'] =  "CSRF Token invalid.";
+	            }
             }
         }
 	}
     
+	/* If error or possible malicious activity was detected close the session */
+	if ( ( isset( $_SESSION['error'] ) ) ) {
+		header("Location:../logout.php");
+		die();
+	}
     ?>
 
 
@@ -136,6 +149,7 @@
 <form method="post" action="" class="pure-form pure-form-aligned" enctype='multipart/form-data'>
 
 <fieldset>
+<input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
 <div class = "pure-controls" > Source : #<?php echo $selectedAccount ;?>
 </div>
 <div class = "pure-controls" > Required Tan : #<?php echo $user->getNextTan($selectedAccount );?>

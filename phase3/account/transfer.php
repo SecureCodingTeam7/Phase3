@@ -1,9 +1,16 @@
 <?php
+ini_set( 'session.cookie_httponly', 1 );
 include_once(__DIR__."/../class/c_user.php");
 include_once(__DIR__."/../include/helper.php");
 $loginPage = "../login.php";
 $loginRedirectHeader = "Location: ".$loginPage;
 session_start();
+
+/* Generate Form Token (valid for this session) */
+if (!isset($_SESSION['CSRFToken'])) {
+	$_SESSION['CSRFToken'] = generateFormToken();
+}
+
 if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isset($_SESSION['user_login']) ) {
     echo "Session Invalid. <a href='$loginPage'>Click here</a> to sign in.";
     
@@ -35,29 +42,46 @@ else {
 	$requiredTAN = "-1";
 	
 	if ( isset( $_SESSION['selectedAccount'] ) ) {
-		$selectedAccount = $_SESSION['selectedAccount'];
+		/* Make sure account belongs to user */
+		$accounts = $user->getAccounts();
 		
-		$requiredTAN = $user->getNextTAN( $selectedAccount );
-		
-		if ( isset( $_POST['creditTransfer'] ) ) {
-			//echo $_POST['amount'];
-			//echo $_POST['destination'];
-			//echo $_POST['tan'];
+		if(in_array($_SESSION['selectedAccount'], $accounts)) {
 			
-			try {
-				if( $user->transferCredits( $_POST, $selectedAccount ) ) {
-					$transferSuccess = 1;
-					$transferMessage = "Successfully transferred " .$_POST['amount']. " Euro to " .$_POST['destination'];
+			$selectedAccount = $_SESSION['selectedAccount'];
+			$requiredTAN = $user->getNextTAN( $selectedAccount );
+			
+			if ( isset( $_POST['creditTransfer'] ) ) {
+				//echo $_POST['amount'];
+				//echo $_POST['destination'];
+				//echo $_POST['tan'];
+				if (isset( $_POST['CSRFToken']) && validateFormToken($_POST['CSRFToken'])) {
+					try {
+						if( $user->transferCredits( $_POST, $selectedAccount ) ) {
+							$transferSuccess = 1;
+							$transferMessage = "Successfully transferred " .$_POST['amount']. " Euro to " .$_POST['destination'];
+						} else {
+							$transferSuccess = -1;
+							$transferMessage = "Transfer Failed.";
+						}
+					} catch (Exception $e) {
+						$transferMessage = $e->errorMessage();
+					}
 				} else {
-					$transferSuccess = -1;
-					$transferMessage = "Transfer Failed.";
+					$_SESSION['error'] =  "CSRF Token invalid.";
 				}
-			} catch (Exception $e) {
-				$transferMessage = $e->errorMessage();
-			}		
+			}
+		} else {
+			/* Possible malicious activity: Account does not belong to user
+			 * Raise Session Error and close the session
+			 */
+			$_SESSION['error'] =  "Account mismatch detected.";
 		}
-		
-		
+	}
+	
+	/* If error or possible malicious activity was detected close the session */
+	if ( ( isset( $_SESSION['error'] ) ) ) {
+		header("Location:../logout.php");
+		die();
 	}
 ?>
 <!doctype html>
@@ -98,14 +122,15 @@ else {
 				echo "No account is active at the moment.<br />";
 				echo "You can set the active account on the <a href=\"index.php\">Overview page</a>.";
 			} else {
-				echo "Credit Transfer for Account #".$selectedAccount;
+				echo "Credit Transfer for Account <em>#".$selectedAccount."</em>";
 			?>
 		<form method="post" action="" class="pure-form pure-form-aligned" enctype='multipart/form-data'>
 			
 		    <fieldset>
+		    	<input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
 		        <div class="pure-control-group">
 		            <label for="destination">Destination</label>
-		            <input id="destination" name="destination" type="text" placeholder="Destination" required>
+		            <input id="destination" name="destination" type="text" placeholder="Account Number" required>
 		        </div>
 		
 		        <div class="pure-control-group">
@@ -114,8 +139,8 @@ else {
 		        </div>
 		        
         		<div class="pure-control-group">
-        		<label for="amount">TAN #<?php echo $user->getNextTAN( $selectedAccount ); ?></label>
-            		<input id="tan" name="tan" type="text" placeholder="**" required>
+        		<label for="amount">TAN <em>#<?php echo $user->getNextTAN( $selectedAccount ); ?></em></label>
+            		<input id="tan" name="tan" type="text" placeholder="TAN" required>
         		</div>
 		
 		        <div class="pure-controls">
