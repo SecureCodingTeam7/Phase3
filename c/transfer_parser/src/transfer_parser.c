@@ -16,10 +16,13 @@
 #include "ntp.h"
 #include "md5.h"
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
 typedef struct transfer_details {
 	char dest_acc_number[11];
 	// needed for generated hash
 	char amount_str[11];
+	char description[201];
 	double amount;
 } transfer_details;
 
@@ -117,7 +120,7 @@ int test_code(MYSQL_STMT *stmt, char code[16], char src[11], long requested_code
 	// TODO why is this tmp nesseccary?
 	char code_tmp[16] = {'\0'};
 	strncpy(code_tmp, code, 15);
-	printf("code: %s\n", code_tmp);
+	//printf("code: %s\n", code_tmp);
 
 	param[0].buffer_type = MYSQL_TYPE_VARCHAR;
 	param[0].buffer = (void *) &code_tmp;
@@ -285,8 +288,8 @@ int update_balance(MYSQL_STMT *stmt, char *acc_number, double amount, int additi
 	return 0;
 }
 
-int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[16], double amount, int update_tan) {
-	MYSQL_BIND param[5];
+int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[16], double amount, char description[201], int update_tan) {
+	MYSQL_BIND param[6];
 
 	// update balances
 	int error;
@@ -306,7 +309,7 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 		return 6;
 	}
 
-	char *sql = "insert into transactions(source, destination, amount, code, is_approved, date_time) values(?, ?, ?, ?, ?, NOW())";
+	char *sql = "insert into transactions(source, destination, amount, description, code, is_approved, date_time) values(?, ?, ?, ?, ?, ?, NOW())";
 
 	if(mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
 		printf("Could not prepare statement\n");
@@ -323,6 +326,9 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 	char dest_tmp[11];
 	strncpy(dest_tmp, dest, 10);
 
+	char desc_tmp[201];
+	strncpy(desc_tmp, description, 201);
+
 	char code_tmp[16];
 	strncpy(code_tmp, code, 15);
 
@@ -338,13 +344,17 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 	param[2].buffer = (void *) &amount;
 
 	param[3].buffer_type = MYSQL_TYPE_VARCHAR;
-	param[3].buffer = (void *) &code_tmp;
-	param[3].buffer_length = 15;
+	param[3].buffer = (void *) &desc_tmp;
+	param[3].buffer_length = strlen(description);
+
+	param[4].buffer_type = MYSQL_TYPE_VARCHAR;
+	param[4].buffer = (void *) &code_tmp;
+	param[4].buffer_length = 15;
 
 	// bit value type (MYSQL_TYPE_BIT) is not available for prepared statements!
 	// we have to use tiny int and mysql will do the conversation to bit(1)
-	param[4].buffer_type = MYSQL_TYPE_TINY;
-	param[4].buffer = (void *) &is_approved;
+	param[5].buffer_type = MYSQL_TYPE_TINY;
+	param[5].buffer = (void *) &is_approved;
 
 	if(mysql_stmt_bind_param(stmt, param) != 0) {
 		printf("Could not bind parameters\n");
@@ -611,7 +621,7 @@ int main(int argc, char **argv) {
 	char *buffer;
 	unsigned int buffer_len = 0;
 	char *src = argv[2];
-	char dest[11] = {'\0'}, amount[11] = {'\0'};
+	char dest[11] = {'\0'}, amount[11] = {'\0'}, description[201] = {'\0'};
 	char code[16] = {'\0'};
 	int transfer_count = 0;
 
@@ -652,9 +662,12 @@ int main(int argc, char **argv) {
 		} else if(!memcmp(buffer, "amount:", 7)) {
 			memcpy(amount, buffer + 7, 10);
 			amount[10] = '\0';
+		} else if(!memcmp(buffer, "description:", 12)) {
+			memcpy(description, buffer + 12, MIN(200, buffer_len - 12));
+			description[200] = '\0';
 
-			if(dest[0] == '\0' || amount[0] == '\0' || code[0] == '\0') {
-				printf("destination, source, code and amount fields must be specified and non empty!\n");
+			if(dest[0] == '\0' || amount[0] == '\0' || code[0] == '\0' || description[0] == '\0') {
+				printf("destination, source, code, amount and description fields must be specified and non empty!\n");
 				return 2;
 			}
 
@@ -686,6 +699,7 @@ int main(int argc, char **argv) {
 
 			memcpy(transfers[transfer_count].dest_acc_number, dest, 11);
 			memcpy(transfers[transfer_count].amount_str, amount, 11);
+			memcpy(transfers[transfer_count].description, description, 201);
 			transfers[transfer_count].amount = famount;
 
 			transfer_count++;
@@ -693,6 +707,7 @@ int main(int argc, char **argv) {
 			// reset
 			memset(dest, '\0', 11);
 			memset(amount, '\0', 11);
+			memset(description, '\0', 201);
 
 		} else if(!memcmp(buffer, "code:", 5)) {
 			memcpy(code, buffer + 5, 15);
@@ -791,7 +806,7 @@ int main(int argc, char **argv) {
 		mysql_stmt_close(stmt);
 
 		stmt = mysql_stmt_init(db);
-		if((error = insert_transaction(stmt, src, transfers[i].dest_acc_number, code, transfers[i].amount, code_number > 0))) {
+		if((error = insert_transaction(stmt, src, transfers[i].dest_acc_number, code, transfers[i].amount, transfers[i].description, code_number > 0))) {
 			return error;
 		}
 		mysql_stmt_close(stmt);
