@@ -29,7 +29,7 @@ public class FileParser {
             }
 
             if(line.startsWith("amount:")) {
-                amount = line.substring(8);
+                amount = line.substring(7);
                 // we are ready now !
                 return;
             }

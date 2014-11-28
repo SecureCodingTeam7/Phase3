@@ -1,5 +1,7 @@
 <?php
-include_once(__DIR__."/include/db_connect.php"); 
+ini_set( 'session.cookie_httponly', 1 );
+include_once(__DIR__."/include/db_connect.php");
+include_once(__DIR__."/include/InvalidInputException.php"); 
 include_once(__DIR__."/class/c_user.php");
 
 if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
@@ -26,13 +28,19 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		</div>
 		
 		<div class="main">
-		<p>Already have an account? <a href="login.php">Click here</a> to sign in.</p>
+		<p>Already have an account? <a href="login.php"><em>Click here</em></a> to sign in.</p>
 	
 			<form method="post" action="" class="pure-form pure-form-aligned">
 		    <fieldset>
 		        <div class="pure-control-group">
 		            <label for="email">Email</label>
 		            <input name="email" id="email" type="email" placeholder="YourAccount@bank.de" required>
+		        </div>
+		        
+		        <div class="pure-control-group">
+		            <label for="username">Name</label>
+		            <input name="username" id="username" type="text" placeholder="Name" onkeyup="check_un()" required>
+		            <b id=un_info></b>
 		        </div>
 		
 		        <div class="pure-control-group">
@@ -55,8 +63,16 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 			    </select>
 		        </div> 
 		        
+		        <div id="use_scs_div" class="pure-control-group">
+				<label id="use_scs_label" for="use_scs">TAN method</label>
+		        <select id="use_scs" name="use_scs" size="1">
+				<option value="0">Email: PDF List</option>
+				<option value="1">SCS</option>
+			    </select>
+		        </div> 
+		        
 		        <div class="pure-controls">
-		            <button id="SignInButton" type="submit" name="checkRegister" class="pure-button pure-button-primary">Finish Registration</button>
+		            <button id="SignInButton" type="submit" name="checkRegister" class="pure-button pure-button-primary" onclick="setTimeout(disableFunction, 1);">Finish Registration</button>
 		        </div>
 		    </fieldset>
 			</form>
@@ -64,6 +80,11 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		</div>
 		</div>
 	</div>
+<script>
+	function disableFunction() {
+	    document.getElementById("SignInButton").disabled = 'true';
+	}
+</script>
 </body>
 <script>
 	var pw_info = document.getElementById("password_info")
@@ -103,6 +124,51 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		}
 		check_pw()
 	}
+
+	function charUpperCase( char ) {
+	    return char !== char.toLowerCase();
+	}
+
+	function startsUpperCase( string ) {
+	    return charUpperCase( string.charAt(0) );
+	}
+	
+	function check_un() {
+		var un_field = document.getElementById("username")
+		var un_info = document.getElementById("un_info")
+		
+		if (un_field.value.length >= 4) {
+			if (un_field.value.match(/^[a-zA-Z ]+$/)) {
+				un_info.textContent = ""
+
+				if (!startsUpperCase(un_field.value)) {
+					submit_button.disabled = true;
+					un_info.textContent = "Name needs to start with a capital letter."	
+				} else {
+					submit_button.disabled = false;
+					check_pw()
+				}
+			} else {
+				submit_button.disabled = true;
+				un_info.textContent = "Your name must contain only letters."
+			}
+		} else {
+			submit_button.disabled = true;
+			un_info.textContent = "Your name must be at least 4 characters long."
+		}
+	}
+	
+	var sel = document.getElementById('state');
+	sel.onchange = function() {
+		toggle_visibility("use_scs_div")
+	}
+	
+	function toggle_visibility(cl){
+		var els = document.getElementById(cl);
+		var s = els.style;
+		s.display = s.display==='none' ? 'block' : 'none'
+	}
+	
 </script>
 </html>
 <?php 
@@ -113,11 +179,18 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 	//~ echo "<br />[DEBUG] Email: ". $_POST['email'];
 	//~ echo "<br />[DEBUG] Password: " . $_POST['password'];
 	//~ echo "<br />[DEBUG] Status: " . $_POST['status'];
+
+	try {
+		$success =  $user->register( $_POST );
 		
-	if( $user->register( $_POST ) ) {
-		echo "<br />Registration for ". $_POST['email']." successful. Go to <a href='login.php'>Sign in</a>.";
-	} else {
-		echo "<br />Unable to register at this time. Please <a href='register.php'>try again</a>.";
+		if ($success) {
+			echo "<br />Registration for ". $_POST['email']." successful. Go to <a href='login.php'>Sign in</a>.";
+		} else {
+			echo "<br />Unable to register at this time. Please <a href='register.php'>try again</a>.";
+		}
+	} catch (InvalidInputException $ex) {
+		echo $ex->errorMessage();
+		echo "<br />Please <a href='register.php'>try again</a>.";
 	}
 }
 ?>

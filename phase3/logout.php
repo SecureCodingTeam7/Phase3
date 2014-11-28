@@ -1,4 +1,5 @@
 <?php
+ini_set( 'session.cookie_httponly', 1 );
 $loginPage = "login.php";
 $loginRedirectHeader = "Location: ".$loginPage;
 session_start();
@@ -17,7 +18,12 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 	/* Session Data Invalid -> Redirect to Login */
 	//header($loginRedirectHeader);
 } else {
-	/* Session Valid */
+	/* Session Valid, display any Session Errors if appropriate */
+	if (isset($_SESSION['error'])) {
+		echo "Session Error: ".$_SESSION['error']."<br />";
+	}
+	
+	/* Close Session */
 	$_SESSION = array();
 	session_destroy();
 	

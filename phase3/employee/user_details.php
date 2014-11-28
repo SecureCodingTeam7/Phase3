@@ -1,4 +1,5 @@
 <?php
+ini_set( 'session.cookie_httponly', 1 );
 include_once(__DIR__."/../class/c_user.php");
 include_once(__DIR__."/../include/helper.php");
 $loginPage = "../login.php";
@@ -21,8 +22,13 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 } else if(!$_SESSION['user_level']) {
 	header("Location: ../login.php");
 	die();
-} else if(!isset($_GET['email']) || !isset($_GET['id'])) {
-	echo "Invalid get params";
+} else if(!isset($_POST['id'])) {
+	header("Location:users.php");
+	die();
+} else if( !isset( $_POST['CSRFToken'] ) || !validateFormToken( $_POST['CSRFToken'] )) {
+	$_SESSION['error'] = "The CSRF Token was not found or invalid.";
+	header("Location:../logout.php");
+	die();
 } else {
 	/* Session Valid */
 	$user = new User();
@@ -54,12 +60,15 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 		
 		<div class="main">
 		<?php 
-			echo "Details for ".$_GET['email'];
+		
+			$selectedUser = new User();
+			$selectedUser->getUserDataFromID( $_POST['id'] );
+			echo "Details for ".$selectedUser->email;
 			
-			$accounts = $user->getAccountsForId($_GET['id']);
+			$accounts = $selectedUser->getAccounts();
 			
 			foreach($accounts as $account) {
-				$transactions = $user->getTransactions( $account );
+				$transactions = $selectedUser->getTransactions( $account );
 				$odd = true;
 				$count = 0;
 				
@@ -71,9 +80,12 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 						<tr>
 							<th>#</th>
 							<th>Source</th>
+							<th>Src-Name</th>
 							<th>Destination</th>
-							<th>Amount (Eur)</th>
-							<th>Approved</th>
+							<th>Dst-Name</th>
+							<th>Amount</th>
+							<th>Valid</th>
+							<th>Description</th>
 							<th>Time</th>
 						</tr>
 					</thead>
@@ -92,12 +104,14 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 							<td><?php if ($transaction['source'] == $account) {
 								 echo "<p class=\"selectedAccount\">".$transaction['source']."</p>";
 							} else { echo $transaction['source']; } ?></td>
+							<td><?php echo $transaction['source_name'] ?></td>
 							<td><?php if ($transaction['destination'] == $account) {
 								 echo "<p class=\"selectedAccount\">".$transaction['destination']."</p>";
 							} else { echo $transaction['destination']; } ?></td>
-						  
+						  	<td><?php echo $transaction['destination_name'] ?></td>
 							<td><p class=<?php if($transaction['destination'] == $account) echo "\"income\">"; else echo "\"expense\">"; echo $transaction['amount']."</p>"; ?></td>
 							<td><?php if ($transaction['is_approved'] > 0) echo "yes"; else echo "no"; ?></td>
+							<td><?php echo $transaction['description'] ?></td>
 							<td><?php echo $transaction['date_time']; ?></td>
 						</tr>
 				<?php
