@@ -5,6 +5,11 @@ include_once(__DIR__."/../include/helper.php");
 $loginPage = "../login.php";
 $loginRedirectHeader = "Location: ".$loginPage;
 session_start();
+/* Generate Form Token (valid for this session) */
+if (!isset($_SESSION['CSRFToken'])) {
+	$_SESSION['CSRFToken'] = generateFormToken();
+}
+
 if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isset($_SESSION['user_login']) ) {
     echo "Session Invalid. <a href='$loginPage'>Click here</a> to sign in.";
     
@@ -80,7 +85,13 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 						$odd = true; 
 					}?>
 			            <td><?php echo ++$count ?></td>
-			            <td><?php echo "<a href=\"user_details.php?id=".$user['id']."&email=".$user['email']."\">".$user['email']; ?></td>
+			            <td>
+			            <form method="post" action="user_details.php">
+							<input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
+							<input type="hidden" name="id" value="<?php echo $user['id']; ?>" />
+							<input type="submit" name="userDetailsSubmit" class="pure-button2" value="<?php echo $user['email']; ?>" />
+						</form>
+						</td>
 			            <td><?php if ($user['is_active'] > 0) echo "yes"; else echo "no"; ?></td>
 			        </tr>
 			<?php

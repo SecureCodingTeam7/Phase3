@@ -2,6 +2,7 @@
 ini_set( 'session.cookie_httponly', 1 );
 include_once(__DIR__."/../class/c_user.php");
 include_once(__DIR__."/../include/helper.php");
+include_once(__DIR__."/../include/InvalidInputException.php");
 $loginPage = "../login.php";
 $loginRedirectHeader = "Location: ".$loginPage;
 session_start();
@@ -30,13 +31,17 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 	$submitSucces = false;
 	
 	if(isset($_POST['transactions'])) {
-		$submitSucces = true;
 		$user->approveTransactions($_POST['transactions']);
+		$submitMessage = "Approval was successful!";
 	}
 	
-	if(isset($_POST['users'])) {
-		$submitSucces = true;
-		$user->approveUsers($_POST['users']);
+	if( isset( $_POST['users'] ) ) {
+		try {
+		$user->approveUsers( $_POST );
+		$submitMessage = "Approval was successful!";
+		} catch ( InvalidInputException $ex ) {
+			$submitMessage = $ex->errorMessage();
+		}
 	}
 	
 ?>
@@ -67,10 +72,7 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 		<div class="main">
 		<form method="post">
 		<?php 
-			if($submitSucces) {
-				echo "Approval was successful!";
-				echo "<br>";
-			}
+			echo $submitMessage."<br />";
 			echo "Currently Inapproved Transactions";
 			
 			$transactions = $user->getInApprovedTransactions();
@@ -127,6 +129,7 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 			            <th>#</th>
 			            <th>Email</th>
 			            <th>Employee</th>
+			            <th>Set Balane</th>
 			        </tr>
 			    </thead>
 			
@@ -143,6 +146,22 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 			            <td><?php echo "<input type=\"checkbox\" name=\"users[]\" value=\"".$user['id']."\">" ?></td>
 			            <td><?php echo $user['email']; ?></td>
 			            <td><?php if ($user['is_employee'] > 0) echo "yes"; else echo "no"; ?></td>
+			            <td>
+			            <?php 
+			            	if ($user['is_employee'] > 0) {
+			            		echo "N/A";
+			            	} else {
+			            	?>
+			            	
+							<div class="pure-control-group">
+							<input name="<?php echo "balance".$user['id']; ?>" id="balances" type="text" placeholder="">
+							</div>
+			            
+			            
+			            	<?php
+			            	}
+						?>
+						</td>
 			        </tr>
 			<?php
 			}

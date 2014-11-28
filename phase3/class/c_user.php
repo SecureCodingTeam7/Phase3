@@ -15,12 +15,12 @@ require(__DIR__.'/../include/phpmailer/class.phpmailer.php');
 class User {
 	public $email = null;
 	public $password = null;
+	public $name = null;
 	public $id = null;
 	public $isEmployee = null;
 	public $isActive = null;
 	public $pin = null;
 	public $DEBUG = false;
-
 	
 	public function getAccountNumberID( $accountNumber ) {
 		try {
@@ -46,6 +46,12 @@ class User {
 	
 	
 	public function getTransactions( $accountNumber ) {
+		/* Make sure account number belongs to this user */
+		$userAccounts = $this->getAccounts();
+		if ( !in_array($accountNumber, $userAccounts ) ) {
+			return array ();
+		}
+		
 		try {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
@@ -71,6 +77,7 @@ class User {
 	public function generateTANList( $accountNumber ) {
 		/* Generate 100 random, unique transaction Codes of length 15 digits for this user */
 		$maxNumTries = 100; // maximum number of rerolls in case a code is not unique
+		
 		try {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
@@ -81,7 +88,6 @@ class User {
 			if ($accountID < 0) {
 				return false;
 			}
-			
 			
 			for ( $codeNumber = 0; $codeNumber < 100; $codeNumber++) {
 				$tries = 0;
@@ -110,7 +116,6 @@ class User {
 				}
 				
 				$tans[$codeNumber] = $code; 
-
 				// Code is unique, insert it into db
 				$sql = "INSERT INTO trans_codes (account_id, code_number, code, is_used) VALUES (:account_id, :code_number, :code, :is_used)";
 				$stmt = $connection->prepare ( $sql );
@@ -138,7 +143,6 @@ class User {
 				unlink($tmp_pdf);	
 				return false;
 			}
-				
 			return true;
 				
 				
@@ -177,14 +181,27 @@ class User {
 			
 			throw new SendEmailException($mail->ErrorInfo);
 		} 
-		echo "mail sent";
 	}
 
-	
-	public function commitTransaction( $source, $destination, $amount, $code ) {
+	public function commitTransaction( $source, $destination, $amount, $code, $description ) {
 		$is_approved = true;
 		if ( $amount >= 10000 ) {
 			$is_approved = false;
+		}
+		
+		/* Obtain Source & Destination Names */
+		$sourceName = getAccountOwner( $source );
+		$destName = getAccountOwner( $destination );
+		// echo "<br />SrcAcc: ".$source;
+		// echo "<br />SrcName: ".$sourceName;
+		// echo "<br />DstName: ".$destName;
+		
+		if ($sourceName == "") {
+			throw new TransferException("Unable to obtain Owner of Source Account.");
+		}
+		
+		if ($destName == "") {
+			throw new TransferException("Unable to obtain Owner of Destination Account.");
 		}
 		
 		try {
@@ -199,11 +216,14 @@ class User {
 			
 			if ( $stmt->rowCount() > 0 ) {
 				if ( $this->updateNextTan( $source ) ) {
-					$sql = "INSERT INTO transactions (source, destination, amount, code, is_approved, date_time) VALUES (:source, :destination, :amount, :code, :is_approved, NOW())";
+					$sql = "INSERT INTO transactions (source, source_name, destination, destination_name, amount, description, code, is_approved, date_time) VALUES (:source, :source_name, :destination, :destination_name, :amount, :description, :code, :is_approved, NOW())";
 					$stmt = $connection->prepare( $sql );
 					$stmt->bindValue( "source", $source, PDO::PARAM_STR );
+					$stmt->bindValue( "source_name", $sourceName, PDO::PARAM_STR );
 					$stmt->bindValue( "destination", $destination, PDO::PARAM_STR );
+					$stmt->bindValue( "destination_name", $destName, PDO::PARAM_STR );
 					$stmt->bindValue( "amount", $amount, PDO::PARAM_STR );
+					$stmt->bindValue( "description", $description, PDO::PARAM_STR );
 					$stmt->bindValue( "code", $code, PDO::PARAM_STR );
 					$stmt->bindValue( "is_approved", $is_approved, PDO::PARAM_STR );
 					$stmt->execute();
@@ -334,20 +354,49 @@ class User {
 	
 	
 	public function transferCredits( $data = array(), $source ) {
-		$destination = "";
-		$amount = 0;
 
-		if ( isset( $data['destination'] ) ) $destination = stripslashes( strip_tags( $data['destination'] ) );
-		else throw new TransferException("Destination invalid.");
-		if ( isset( $data['amount'] ) ) $amount = stripslashes( strip_tags( $data['amount'] ) );
-		else throw new TransferException("Amount Invalid.");
-		if ( isset( $data['tan'] ) ) $tan = stripslashes( strip_tags( $data['tan'] ) );
-		else throw new TransferException("TAN invalid.");
-		if ( $destination == $source )
-			throw new TransferException("Destination account must be different from source account.");
-		if ( $amount <= 0 )
-			throw new TransferException("Amount must be positive.");;
+		if ( isset( $data['description'] ) ) {
+			$description = stripslashes( strip_tags( $data['description'] ) );
+			if (!preg_match('/^[a-z0-9 .:,\-]+$/i', $description)) { 
+				throw new TransferException("The description may only contain letters, numbers,<br />and the following characters: .,:-"); 
+			}
+			
+			if (strlen($description) > 200) {
+				throw new TransferException("Please shorten your description to 200 characters or less.");
+			}
+		} else throw new TransferException("Description invalid.");
 		
+		if ( isset( $data['destination'] ) ) {
+			$destination = stripslashes( strip_tags( $data['destination'] ) );
+			if (!ctype_digit ( $destination )) {
+				throw new TransferException("The Destination Account may only contain digits.");
+			}
+		} else throw new TransferException("Destination invalid.");
+		
+		if ( isset( $data['amount'] ) ) {
+			$amount = stripslashes( strip_tags( $data['amount'] ) );
+			
+			if ( !is_numeric( $amount ) ) {
+				throw new TransferException("Amount must be a number.");;
+			}
+
+			if ( $amount <= 0 ) {
+				throw new TransferException("Amount must be positive.");;
+			}
+		} else throw new TransferException("Amount Invalid.");
+		
+		if ( isset( $data['tan'] ) ) {
+			$tan = stripslashes( strip_tags( $data['tan'] ) );
+			
+			if (!ctype_digit ( $tan )) {
+				throw new TransferException("The TAN may only contain digits.");
+			}
+		} else throw new TransferException("TAN invalid.");
+		
+		if ( $destination == $source ) {
+			throw new TransferException("Destination account must be different from source account.");
+		}
+
 		try {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
@@ -367,7 +416,8 @@ class User {
 				if ( $result['user_id'] != $this->id ) {
 					throw new TransferException("User mismatch detected. Please Log out and Sign back in.");
 				} else {
-					// source account belongs to user, make sure destination account exists
+					// source account belongs to user
+					// make sure destination account exists
 					if (!checkAccountExists( $destination )) {
 						throw new TransferException("The destination account doesn't exist.");
 					} else {
@@ -375,7 +425,7 @@ class User {
 						if ( $currentTANNumber < 0 )
 							throw new TransferException("Unable to obtain TAN number.");
 						if ( $this->verifyTAN( $source, $tan, $currentTANNumber ) ) {
-							return $this->commitTransaction($source, $destination, $amount, $tan);
+							return $this->commitTransaction($source, $destination, $amount, $tan, $description);
 						} else {
 							throw new TransferException("Invalid TAN.");
 						}
@@ -463,9 +513,10 @@ class User {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 	 
-			$sql = "INSERT INTO users (email,passwd,is_employee,is_active) VALUES (:email,:password,:isEmployee,:isActive)";
+			$sql = "INSERT INTO users (email,name,passwd,is_employee,is_active) VALUES (:email,:name,:password,:isEmployee,:isActive)";
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "email", $this->email, PDO::PARAM_STR );
+			$stmt->bindValue( "name", $this->name, PDO::PARAM_STR );
 			$stmt->bindValue( "password", generateSaltedHash($this->password), PDO::PARAM_STR );
 			$stmt->bindValue( "isEmployee", $this->isEmployee, PDO::PARAM_STR );
 			$stmt->bindValue( "isActive", false, PDO::PARAM_STR );
@@ -610,7 +661,7 @@ class User {
 		$result = array ();
 		try{
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
-			$sql = "SELECT id, email, passwd, pin, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE email = :email LIMIT 1";
+			$sql = "SELECT id, name, email, passwd, pin, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE email = :email LIMIT 1";
 		
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "email", $email, PDO::PARAM_STR );
@@ -619,6 +670,7 @@ class User {
 			$result = $stmt->fetch();
 			
 			$this->email = $result['email'];
+			$this->name = $result['name'];
 			$this->password = $result['passwd'];
 			$this->isEmployee = $result['is_employee'];
 			$this->isActive = $result['is_active'];
@@ -630,6 +682,7 @@ class User {
 				echo "<br />===================================================<br />";
 				echo "Call: getUserDataFromEmail() for ".$email.":<br />";
 				echo "EMAIL: ".$result['email']."<br />";
+				echo "Name: ".$result['name']."<br />";
 				echo "Pass: ".$result['passwd']."<br />";
 				echo "IsEmployee: ".$result['is_employee']."<br />";
 				echo "IsActive: ".$result['is_active']."<br />";
@@ -637,6 +690,46 @@ class User {
 				echo "PWRecoverID: ".$result['pw_recover_id']."<br />";
 			}
 			
+			$connection = null;
+			return $result;
+		} catch ( PDOException $e ) {
+			echo "<br />Connect Error (getUserDataFromEmail): ". $e->getMessage();
+			return array();
+		}
+	}
+	
+	public function getUserDataFromID( $id ) {
+		$result = array ();
+		try{
+			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+			$sql = "SELECT id, name, email, passwd, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE id = :id LIMIT 1";
+	
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "id", $id, PDO::PARAM_STR );
+			$stmt->execute();
+	
+			$result = $stmt->fetch();
+				
+			$this->email = $result['email'];
+			$this->name = $result['name'];
+			$this->password = $result['passwd'];
+			$this->isEmployee = $result['is_employee'];
+			$this->isActive = $result['is_active'];
+			$this->id = $result['id'];
+			$this->pwRecoverId = $result['pw_recover_id'];
+				
+			if ($this->DEBUG) {
+				echo "<br />===================================================<br />";
+				echo "Call: getUserDataFromEmail() for ".$email.":<br />";
+				echo "EMAIL: ".$result['email']."<br />";
+				echo "Name: ".$result['name']."<br />";
+				echo "Pass: ".$result['passwd']."<br />";
+				echo "IsEmployee: ".$result['is_employee']."<br />";
+				echo "IsActive: ".$result['is_active']."<br />";
+				echo "ID: ".$result['id']."<br />";
+				echo "PWRecoverID: ".$result['pw_recover_id']."<br />";
+			}
+				
 			$connection = null;
 			return $result;
 		} catch ( PDOException $e ) {
@@ -747,36 +840,69 @@ class User {
 		}
 	}
 	
-	public function approveUsers($userIds) {
+	public function approveUsers( $data = array() ) {
 		if(!$this->isEmployee) return;
+		
+		/* Make sure POST Data contains array of userIDs */
+		if (!isset($data['users']) || count($data['users']) <= 0) {
+			throw new InvalidInputException("Submission data invalid. No users found.");
+		}
+		
+		/* Obtain array of user IDs from POST Data */
+		$userIDs = $data['users'];
+		
 		try {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			
-			foreach($userIds as $userId) {
-				$sql = "UPDATE users set is_active = 1 WHERE id = :id";
-			
-				$stmt = $connection->prepare( $sql );
-				$stmt->bindValue( "id", $userId, PDO::PARAM_INT );
-				$stmt->execute();
-			
-			
+			foreach($userIDs as $userID) {
 				
-				$sql = "Select email FROM users WHERE id = :id LIMIT 1";
-				$stmt = $connection->prepare($sql);
-				$stmt->bindValue( "id", $userId, PDO::PARAM_INT);
-				$stmt->execute();
-				
-				$result = $stmt -> fetch();
-				
-				$user = new User();
-				$user->getUserDataFromEmail($result["email"]);
-				
-				if(!$user->isEmployee) {
-					$user->addAccount( generateNewAccountNumber() );
+				/* Make sure userID is numeric */
+				if ( !is_numeric( $userID ) ) {
+					throw new InvalidInputException("User ID invalid.");
 				}
+				
+				/* Make sure balance is set in POST Data */
+				if ( !isset( $data['balance'.$userID] ) ) {
+					throw new InvalidInputException("Submission data invalid. Balance for user ".$userID." not found.");
+				}
+				
+				$newBalance = $data['balance'.$userID];
+				
+				/* Make sure balance is numeric */
+				if ( !is_numeric( $newBalance ) || ( $newBalance < 0 ) ) {
+					throw new InvalidInputException("Balance must be a positive number.");
+				}
+				
+				/* Make sure user exists & is not an active user */
+				if (isActiveUser( $userID )) {
+					throw new InvalidInputException("This user is already active.");
+				}
+				
+
+				$user = new User();
+				$user->getUserDataFromId($userID);
+
+				if(!$user->isEmployee) {
+					$user->addAccount(generateNewAccountNumber());
+				}
+
+				
+				
+				/* Mark User as Active */
+				$sql = "UPDATE users set is_active = 1 WHERE id = :id";
+				$stmt = $connection->prepare( $sql );
+				$stmt->bindValue( "id", $userID, PDO::PARAM_INT );
+				$stmt->execute();
+				
+				/* Set Balance for User */
+				$sql = "UPDATE accounts set balance = :balance WHERE user_id = :id";
+				$stmt = $connection->prepare( $sql );
+				$stmt->bindValue( "id", $userID, PDO::PARAM_INT );
+				$stmt->bindValue( "balance", $newBalance, PDO::PARAM_INT );
+				$stmt->execute();
+				
+				$count++;
 			}
-			
-			
 			
 			$connection = null;
 		} catch ( PDOException $e ) {
@@ -823,6 +949,24 @@ class User {
 		} catch ( PDOException $e ) {
 			echo "<br />Connect Error: ". $e->getMessage();
 			return array();
+		}
+	}
+	
+	public function getBalanceForAccount( $accountNumber ) {
+		try{
+			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+			$sql = "SELECT balance FROM accounts WHERE account_number = :accountNumber";
+		
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "accountNumber", $accountNumber, PDO::PARAM_INT );
+			$stmt->execute();
+		
+			$result = $stmt->fetch();
+			$connection = null;
+			return $result['balance'];
+		} catch ( PDOException $e ) {
+			echo "<br />Connect Error: ". $e->getMessage();
+			return -1;
 		}
 	}
 	
@@ -886,5 +1030,6 @@ class User {
 		}
 		
 	}
+	
 }
 ?>

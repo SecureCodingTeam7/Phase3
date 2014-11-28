@@ -128,6 +128,15 @@ li
 	float: left;
 }
 
+.balance {
+	position:absolute;
+	top:5px;
+	right:400px;
+	width: auto;
+	height: 20px;
+	float: left;
+}
+
 .main {
 	position:relative;
 	margin-top:50px;
@@ -169,4 +178,97 @@ li
 
 #createNewAccountButton {
 	width:200px;
+}
+
+.pure-button2 {
+	display:inline-block;
+	*display:inline;
+	zoom:1;
+	line-height:normal;
+	white-space:nowrap;
+	vertical-align:baseline;
+	text-align:center;
+	cursor:pointer;
+	-webkit-user-drag:none;
+	-webkit-user-select:none;
+	-moz-user-select:none;
+	-ms-user-select:none;
+	user-select:none
+}
+
+.pure-button2::-moz-focus-inner{
+	padding:0;
+	border:0
+}
+
+.pure-button2 {
+	width:300px;
+		padding:.5em 1em;
+	color:#444;
+		*color:#444;
+			border:0 rgba(0,0,0,0);
+			border:1px solid #999;
+				border-radius:2px;
+		background-color:none;
+	text-decoration:none;
+	/*
+	font-family:inherit;
+	font-size:100%;
+	*font-size:90%;
+	*overflow:visible;
+	padding:.5em 1em;
+	color:#444;
+	color:rgba(0,0,0,.8);
+	*color:#444;
+	*/
+	/* border:1px solid #999; */
+	/*
+	border:0 rgba(0,0,0,0);
+	background-color:none;
+	text-decoration:none;
+	border-radius:2px
+	*/
+}
+
+.pure-button2-hover,.pure-button2:hover,.pure-button2:focus {
+	box-shadow:0 0 0 1px rgba(0,0,0,.15) inset,0 0 6px rgba(0,0,0,.2) inset;
+}
+
+.pure-button2:focus {
+	outline:0
+}
+
+.pure-button2-active,.pure-button2:active { 
+	background-color:orange;
+	box-shadow:0 0 0 1px rgba(0,0,0,.15) inset,0 0 6px rgba(0,0,0,.2) inset;
+}
+
+.pure-button2[disabled],.pure-button2-disabled,.pure-button2-disabled:hover,.pure-button2-disabled:focus,.pure-button2-disabled:active {
+	border:0;background-image:none;
+	filter:progid:DXImageTransform.Microsoft.gradient(enabled=false);
+	filter:alpha(opacity=40);
+	-khtml-opacity:.4;
+	-moz-opacity:.4;
+	opacity:.4
+	;cursor:not-allowed;
+	box-shadow:none
+}
+
+.pure-button2-hidden {
+	display:none
+}
+
+.pure-button2::-moz-focus-inner {
+	padding:0;
+	border:0
+}
+
+.pure-button2-primary,.pure-button2-selected,a.pure-button2-primary,a.pure-button2-selected {
+	background-color:#0078e7;
+	color:#fff
+}
+
+#desc {
+	vertical-align: text-top;
+	height:80px;
 }

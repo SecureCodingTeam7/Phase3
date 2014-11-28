@@ -28,7 +28,7 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		</div>
 		
 		<div class="main">
-		<p>Already have an account? <a href="login.php">Click here</a> to sign in.</p>
+		<p>Already have an account? <a href="login.php"><em>Click here</em></a> to sign in.</p>
 	
 			<form method="post" action="" class="pure-form pure-form-aligned">
 		    <fieldset>
@@ -64,7 +64,7 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		        </div> 
 		        
 		        <div class="pure-controls">
-		            <button id="SignInButton" type="submit" name="checkRegister" class="pure-button pure-button-primary">Finish Registration</button>
+		            <button id="SignInButton" type="submit" name="checkRegister" class="pure-button pure-button-primary" onclick="setTimeout(disableFunction, 1);">Finish Registration</button>
 		        </div>
 		    </fieldset>
 			</form>
@@ -72,6 +72,11 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		</div>
 		</div>
 	</div>
+<script>
+	function disableFunction() {
+	    document.getElementById("SignInButton").disabled = 'true';
+	}
+</script>
 </body>
 <script>
 	var pw_info = document.getElementById("password_info")

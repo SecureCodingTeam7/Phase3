@@ -53,6 +53,7 @@ else {
 			if ( isset( $_POST['creditTransfer'] ) ) {
 				//echo $_POST['amount'];
 				//echo $_POST['destination'];
+				//echo $_POST['description'];
 				//echo $_POST['tan'];
 				if (isset( $_POST['CSRFToken']) && validateFormToken($_POST['CSRFToken'])) {
 					try {
@@ -91,6 +92,16 @@ else {
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<link href="../style/style.css" type="text/css" rel="stylesheet" />
 	<link href="../style/pure.css" type="text/css" rel="stylesheet" />
+	
+	<script language="javascript" type="text/javascript">
+	function limitArea(limitField, limitCount, limitNum) {
+		if (limitField.value.length > limitNum) {
+			limitField.value = limitField.value.substring(0, limitNum);
+		} else {
+			limitCount.value = limitNum - limitField.value.length;
+		}
+	}
+	</script>
 </head>
 <body>
 	<div class="content">
@@ -123,6 +134,7 @@ else {
 				echo "You can set the active account on the <a href=\"index.php\">Overview page</a>.";
 			} else {
 				echo "Credit Transfer for Account <em>#".$selectedAccount."</em>";
+				echo "<p>   ".$transferMessage."</p>";
 			?>
 		<form method="post" action="" class="pure-form pure-form-aligned" enctype='multipart/form-data'>
 			
@@ -130,17 +142,31 @@ else {
 		    	<input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
 		        <div class="pure-control-group">
 		            <label for="destination">Destination</label>
-		            <input id="destination" name="destination" type="text" placeholder="Account Number" required>
+		            <input id="destination" name="destination" type="text" placeholder="Account Number" 
+		            value="<?php if (isset($_POST['destination'])) echo $_POST['destination']; ?>" required>
 		        </div>
 		
 		        <div class="pure-control-group">
 		            <label for="amount">Amount</label>
-		            <input id="amount" name="amount" type="text" placeholder="Amount in Eur" required>
+		            <input id="amount" name="amount" type="text" placeholder="Amount in Eur" 
+		             value="<?php if (isset($_POST['amount'])) echo $_POST['amount']; ?>" required>
 		        </div>
 		        
         		<div class="pure-control-group">
+		            <label for="description">Description</label>
+		            <textarea id="desc2" name="description" type="text" style="width:190px; height:200px;" 
+		            onKeyDown="limitArea(this.form.description,this.form.countdown,200);"
+					onKeyUp="limitArea(this.form.description,this.form.countdown,200);"
+					required><?php if (isset($_POST['description'])) echo $_POST['description']; ?></textarea>
+		        </div>
+		        
+
+		        
+        		<div class="pure-control-group">
         		<label for="amount">TAN <em>#<?php echo $user->getNextTAN( $selectedAccount ); ?></em></label>
-            		<input id="tan" name="tan" type="text" placeholder="TAN" required>
+            		<input id="tan" name="tan" type="text" placeholder="TAN"
+            		value="<?php if (isset($_POST['tan'])) echo $_POST['tan']; ?>"
+            		required>
         		</div>
 		
 		        <div class="pure-controls">
@@ -159,7 +185,6 @@ else {
 		
 		
 		<?php
-			echo $transferMessage;
 		}
 		?>
 		</div>

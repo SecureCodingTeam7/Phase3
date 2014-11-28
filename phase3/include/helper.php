@@ -62,12 +62,48 @@ function checkAccountExists( $accountNumber ) {
 		
 		$result = $stmt->fetch();
 		
-		// Make sure Source Account belongs to this user
+		// If Account was found result is > 0
 		if ( $stmt->rowCount() > 0 ) {
 			return true;
 		} else {
 			return false;
 		}
+	} catch (PDOException $e) {
+		//echo "<br />Connect Error: ". $e->getMessage();
+	}
+}
+
+
+function getAccountOwner( $accountNumber ) {
+	try {
+		$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+		$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
+
+		// Obtain user_id associated with given account
+		$sql = "SELECT user_id FROM accounts WHERE account_number = :account_number";
+		$stmt = $connection->prepare( $sql );
+		$stmt->bindValue( "account_number", $accountNumber, PDO::PARAM_STR );
+		$stmt->execute();
+
+		$result = $stmt->fetch();
+
+		// If Account was found result is > 0
+		if ( $stmt->rowCount() > 0 ) {
+			$user_id = $result['user_id'];
+			
+			// Obtain Name associated with given account
+			$sql = "SELECT name FROM users WHERE id = :user_id";
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "user_id", $user_id, PDO::PARAM_STR );
+			$stmt->execute();
+			
+			$result = $stmt->fetch();
+			if ( $stmt->rowCount() > 0 ) {
+				return $result['name'];
+			}
+		}
+		
+		return "";
 	} catch (PDOException $e) {
 		//echo "<br />Connect Error: ". $e->getMessage();
 	}
@@ -251,5 +287,33 @@ function query_time_server ($timeserver, $socket)
 		$pdf->Output($pdf_file,"F");
 		pdfEncrypt($pdf_file,"test",$pdf_file);
 	}
+
+function isActiveUser( $userID ) {
+	try {
+		$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+		$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
+
+		// Obtain user_id associated with given account
+		$sql = "SELECT is_active FROM users WHERE id = :id";
+		$stmt = $connection->prepare( $sql );
+		$stmt->bindValue( "id", $userID, PDO::PARAM_STR );
+		$stmt->execute();
+
+		$result = $stmt->fetch();
+
+		// Make sure Source Account belongs to this user
+		if ( $stmt->rowCount() > 0 ) {
+			if ($result['is_active'] == 1)
+				return true;
+			else
+				return false;
+		} else {
+			throw new InvalidInputException("No user with that ID.");
+		}
+	} catch (PDOException $e) {
+		echo "<br />Connect Error: ". $e->getMessage();
+	}
+}
+
 
 ?>
