@@ -73,6 +73,7 @@ if( !(isset( $_POST['checkLogin'] ) ) ) { ?>
 		        </div>
 		    </fieldset>
 			</form>
+			<a href="pw_recovery.php">Forgot Password?</a>
 
 
 	    

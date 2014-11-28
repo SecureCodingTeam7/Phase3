@@ -62,9 +62,19 @@ class User {
 			$stmt->bindValue( "account_number", $accountNumber, PDO::PARAM_STR );
 			$stmt->execute();
 			$result = $stmt->fetchAll();
-				
+			
+			$realResult = array();
+			
 			if ($stmt->rowCount() > 0) {
-				return $result;
+				foreach($result as $transaction) {
+					$sourceName = getAccountOwner( $transaction['source'] );
+					$destName = getAccountOwner ( $transaction['destination'] );
+					$transaction['source_name'] = $sourceName;
+					$transaction['destination_name'] = $destName;
+					
+					array_push($realResult, $transaction);
+				}
+				return $realResult;
 			} else {
 				return array();
 			}
@@ -196,60 +206,58 @@ class User {
 			$is_approved = false;
 		}
 		
-		/* Obtain Source & Destination Names */
-		$sourceName = getAccountOwner( $source );
-		$destName = getAccountOwner( $destination );
-		// echo "<br />SrcAcc: ".$source;
-		// echo "<br />SrcName: ".$sourceName;
-		// echo "<br />DstName: ".$destName;
-		
-		if ($sourceName == "") {
-			throw new TransferException("Unable to obtain Owner of Source Account.");
-		}
-		
-		if ($destName == "") {
-			throw new TransferException("Unable to obtain Owner of Destination Account.");
-		}
-		
-		try {
-			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
-			$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
-	
-			$sql = "UPDATE trans_codes SET is_used = :is_used WHERE code = :code";
-			$stmt = $connection->prepare( $sql );
-			$stmt->bindValue( "code", $code, PDO::PARAM_STR );
-			$stmt->bindValue( "is_used", true, PDO::PARAM_STR);
-			$stmt->execute();
+		if( $this->useScs == "0" ) {
+			try {
+				/* Using standard TAN method */
+				$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+				$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 			
-			if ( $stmt->rowCount() > 0 ) {
-				if ( $this->updateNextTan( $source ) ) {
-					$sql = "INSERT INTO transactions (source, source_name, destination, destination_name, amount, description, code, is_approved, date_time) VALUES (:source, :source_name, :destination, :destination_name, :amount, :description, :code, :is_approved, NOW())";
-					$stmt = $connection->prepare( $sql );
-					$stmt->bindValue( "source", $source, PDO::PARAM_STR );
-					$stmt->bindValue( "source_name", $sourceName, PDO::PARAM_STR );
-					$stmt->bindValue( "destination", $destination, PDO::PARAM_STR );
-					$stmt->bindValue( "destination_name", $destName, PDO::PARAM_STR );
-					$stmt->bindValue( "amount", $amount, PDO::PARAM_STR );
-					$stmt->bindValue( "description", $description, PDO::PARAM_STR );
-					$stmt->bindValue( "code", $code, PDO::PARAM_STR );
-					$stmt->bindValue( "is_approved", $is_approved, PDO::PARAM_STR );
-					$stmt->execute();
-					
-					if ( $stmt->rowCount() > 0) {
-						return true;
-					} else {
-						throw new TransferException("Failed to insert transaction.");
+				$sql = "UPDATE trans_codes SET is_used = :is_used WHERE code = :code";
+				$stmt = $connection->prepare( $sql );
+				$stmt->bindValue( "code", $code, PDO::PARAM_STR );
+				$stmt->bindValue( "is_used", true, PDO::PARAM_STR);
+				$stmt->execute();
+				
+				if ( $stmt->rowCount() > 0 ) {
+					if ( $this->updateNextTan( $source ) ) {
+						return $this->insertTransaction($source, $destination, $amount, $description, $code, $is_approved);
 					}
+				} else { 
+					throw new TransferException("TAN was already used.");
 				}
-			} else { throw new TransferException("TAN was already used.");}
-		} catch ( PDOException $e ) {
-			echo "<br />Connect Error: ". $e->getMessage();
-			return false;
+			} catch ( PDOException $e ) {
+				echo "<br />Connect Error: ". $e->getMessage();
+				return false;
+			}
+		} else {
+			/* Using SCS method */
+			return $this->insertTransaction($source, $destination, $amount, $description, $code, $is_approved);
+		}	
+	}
+	
+	public function insertTransaction ($source, $destination, $amount, $description, $code, $is_approved) {
+		$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+		$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
+		
+		$sql = "INSERT INTO transactions (source, destination, amount, description, code, is_approved, date_time) VALUES (:source, :destination, :amount, :description, :code, :is_approved, NOW())";
+		$stmt = $connection->prepare( $sql );
+		$stmt->bindValue( "source", $source, PDO::PARAM_STR );
+		$stmt->bindValue( "destination", $destination, PDO::PARAM_STR );
+		$stmt->bindValue( "amount", $amount, PDO::PARAM_STR );
+		$stmt->bindValue( "description", $description, PDO::PARAM_STR );
+		$stmt->bindValue( "code", $code, PDO::PARAM_STR );
+		$stmt->bindValue( "is_approved", $is_approved, PDO::PARAM_STR );
+		$stmt->execute();
+		
+		if ( $stmt->rowCount() > 0) {
+			return true;
+		} else {
+			throw new TransferException("Failed to insert transaction.");
 		}
 	}
 	
-	
 	public function verifyTAN( $accountNumber, $tan, $tanNumber ) {
+		
 		$accountID = $this->getAccountNumberID( $accountNumber );
 		try {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
@@ -277,7 +285,7 @@ class User {
 	public function verifyGeneratedTAN($accountNumber,$amount, $tan) {
 		
 		try {
-		$timeStamp = $this->getUTCTime();
+		$timeStamp = getUTCTime();
 	}catch( TimeServerException $ex) {
 		echo $ex->getMessage();
 		return false;
@@ -292,11 +300,9 @@ class User {
 		$tan_two = $this->generateTanWithSeed($former_seed,$pin,$accountNumber,$amount);
 		
 		if ((strcmp($tan,$tan_one) == 0) || (strcmp($tan,$tan_two) == 0)) {
-			echo "valid Tan";
 			return true;
 		}
 		else{
-			echo "invalid TAN";
 			return false;
 		}
 	}
@@ -319,7 +325,6 @@ class User {
 		
 		$plaintext = $seed.$pin.$destination.$amount.$seed;
 		$hash = $this->generateMD5Hash($plaintext);
-		var_dump($hash);
 		$hash_string="";
 		for($i=0; $i < count($hash); $i++){
 			$hash_string = $hash_string.abs($hash[$i]);
@@ -428,9 +433,17 @@ class User {
 					if (!checkAccountExists( $destination )) {
 						throw new TransferException("The destination account doesn't exist.");
 					} else {
+						
+						if($this->useScs == "1") {
+							if($this->verifyGeneratedTAN($destination, $amount, $tan)) {
+								return $this->commitTransaction($source, $destination, $amount, $tan, $description);
+							}
+						}	
+						
 						$currentTANNumber = $this->getNextTan( $source );
 						if ( $currentTANNumber < 0 )
 							throw new TransferException("Unable to obtain TAN number.");
+						
 						if ( $this->verifyTAN( $source, $tan, $currentTANNumber ) ) {
 							return $this->commitTransaction($source, $destination, $amount, $tan, $description);
 						} else {
@@ -505,7 +518,7 @@ class User {
 		
 		if( isset( $data['use_scs'] ) ) {
 			$this->useScs = stripslashes( strip_tags( $data['use_scs'] ) );
-			if ($this->useScs != 1 && $this->useScs != 0) {
+			if ($this->useScs != "1" && $this->useScs != "0") {
 				throw new InvalidInputException("SCS Value is invalid.");
 			}
 		} else {
@@ -627,7 +640,9 @@ class User {
 			$connection = null;
 				
 			if ( $stmt->rowCount() > 0 ) {
-				$this->generateTANList( $accountNumber );
+				if($this->useSCS == "0") {
+					$this->generateTANList( $accountNumber );
+				} 
 				return true;
 			} else {
 				return false;
@@ -913,6 +928,9 @@ class User {
 				$user->getUserDataFromId($userID);
 
 				if(!$user->isEmployee) {
+					if($user->useScs == "1") {
+						$this->sendMail($user->email, " Congratulations, your account was enabled by one of our employees. Have Fun!!","Account Approved");
+					}
 					$user->addAccount(generateNewAccountNumber());
 				}
 

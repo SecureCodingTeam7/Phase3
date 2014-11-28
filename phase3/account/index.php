@@ -142,13 +142,21 @@ else {
 		}
 		?>
 		</div>
+
+		<div class="SCSDownload">
+			<form method="post" action="download.php">
+				<li class="buttons">
+					<input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
+					<input type="submit" name="downloadSCS" value="Download SCS" class="pure-button pure-button-primary" id="DownloadSCSButton" />
+				</li>
+			</form>
+		</div>
 		<div class="accountCreation">
 			<form method="post" action="">
 				<li class="buttons">
 					<input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
 					<input type="submit" name="createAccount" onclick="setTimeout(disableFunction, 1);" value="Create New Account" class="pure-button pure-button-primary" id="createNewAccountButton" />
 				</li>
-			</ul>
 			</form>
 		</div>
 			Welcome, <em><?php echo $_SESSION['user_email']; ?></em>. Below is a list of your accounts. <br /><br />

@@ -62,14 +62,23 @@
 	
 					switch($uploadStatus){
 						case UPLOAD_ERR_OK:
-	                
-	                            $command = "./transfer_parser ".$user->id." ".$selectedAccount." ".$user->getNextTan($selectedAccount)." ".$_FILES['myfile']['tmp_name']." 2>&1";
+									
+								$tan_number = "";
+								if($user->useScs == "1") {
+									$tan_number = "-1";
+	                			} else {
+									$tan_number = $user->getNextTan($selectedAccount);
+								}
+									
+	                            $command = ".././transfer_parser ".$user->id." ".$selectedAccount." ".$tan_number." ".$_FILES['myfile']['tmp_name']." 2>&1";
 	                            $result="";
 	                            exec($command,$result,$return);
 	
 	                            if($return == 0 ){
 	                                $uploadMessage=" Transaction commited";
-	                                $user->updateNextTan( $selectedAccount);
+									if($user->useScs == "0") {
+	                               	 $user->updateNextTan( $selectedAccount);
+	}
 	                                
 	                            }
 	      
@@ -142,9 +151,10 @@
 <div class="main">
 	<div id="description">
 		Example file:<br /><br />
-		destination:2510053093<br />
 		code:299347049962292<br />
+		destination:2510053093<br />
 		amount:123<br />
+		description:my description<br />
 	</div>
 <form method="post" action="" class="pure-form pure-form-aligned" enctype='multipart/form-data'>
 

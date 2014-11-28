@@ -163,7 +163,11 @@ else {
 
 		        
         		<div class="pure-control-group">
-        		<label for="amount">TAN <em>#<?php echo $user->getNextTAN( $selectedAccount ); ?></em></label>
+				<?php if($user->useScs) {
+					echo "<label for=\"amount\"><em>SCS TAN</em></label>";
+				} else {
+					echo "<label for=\"amount\">TAN <em>#".$user->getNextTAN( $selectedAccount )."</em></label>";
+				}?>
             		<input id="tan" name="tan" type="text" placeholder="TAN"
             		value="<?php if (isset($_POST['tan'])) echo $_POST['tan']; ?>"
             		required>

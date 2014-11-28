@@ -154,45 +154,38 @@ function deleteDir($dirPath) {
 
 //TODO adjust jaFilePath
 //TODO insert header
-function generateZipArchive($pin) {
-	
-	$path = tempnam(sys_get_temp_dir(),"");
-	mkdir("$path"."_dir");
-	$jarFile = "/var/www/SCS/SCS.jar";
-	$jarFileCopy = $path."_dir/scs.jar";
-	copy($jarFile,$jarFileCopy);
-	
-	$txtFile = $path."_dir/YOUR_PIN.txt";
-	
-	
-	file_put_contents($txtFile,"Your PIN for generating transaction codes via SCS: ".$pin);
-	
-	$zipFile = $path.".zip";
-	$zip = new ZipArchive();
-	if($zip->open($zipFile,ZipArchive::CREATE)==true){
-		echo " zip file was created";
-		if(file_exists($jarFileCopy))
-			$zip->addFromString("scs.jar",file_get_contents($jarFileCopy));
-		else 
-			echo " file:".$jarFileCopy." not found";
-			
-		if(file_exists($txtFile))
-			$zip->addFromString("YOUR_PIN.txt",file_get_contents($txtFile));
-		else
-			echo $txtFile." not found";
+	function generateZipArchive($pin) {
 		
-		var_dump($zip);
-	$zip->close();
-	unlink($path);
-	deleteDir($path."_dir");
+		$path = tempnam(sys_get_temp_dir(),"");
+		mkdir("$path"."_dir");
+		$jarFile = __DIR__."/../SCS.jar";
+		$jarFileCopy = $path."_dir/scs.jar";
+		copy($jarFile,$jarFileCopy);
+		
+		$txtFile = $path."_dir/YOUR_PIN.txt";
+		
+		
+		file_put_contents($txtFile,"Your PIN for generating transaction codes via SCS: ".$pin);
+		
+		$zipFile = $path.".zip";
+		$zip = new ZipArchive();
+		if($zip->open($zipFile,ZipArchive::CREATE)==true){
+			if(file_exists($jarFileCopy))
+				$zip->addFromString("scs.jar",file_get_contents($jarFileCopy));
+				
+			if(file_exists($txtFile))
+				$zip->addFromString("YOUR_PIN.txt",file_get_contents($txtFile));
+			
+		//var_dump($zip);
+		$zip->close();
+		unlink($path);
+		deleteDir($path."_dir");
 
-	if(file_exists($path.".zip")) {
-		$file_name = basename($path).".zip";
-		var_dump($file_name);
-		echo "<a href='download.php?file=".$file_name."'>Download file</a>";
-	}
-	else
-		echo $path.".zip  doesn't exist";
+		if(file_exists($path.".zip")) {
+			$file_name = basename($path).".zip";
+			return $file_name;
+			//echo "<a href='download.php?file=".$file_name."'>Download file</a>";
+			}
 	}
 }
 
@@ -232,12 +225,6 @@ function query_time_server ($timeserver, $socket)
 			$datum = date("Y-m-d (D) H:i:s",$tmestamp - date("Z",$tmestamp)); /* incl time zone offset */
 			$doy = (date("z",$tmestamp)+1);
 
-			echo "Time check from time server ",$timeserver," : [<font color=\"red\">",$timevalue,"</font>]";
-			echo " (seconds since 1900-01-01 00:00.00).<br>\n";
-			echo "The current date and universal time is ",$datum," UTC. ";
-			echo "It is day ",$doy," of this year.<br>\n";
-			echo "The unix epoch time stamp is $tmestamp.<br>\n";
-			echo date("d/m/Y H:i:s", $tmestamp);
 			return $tmestamp;
 		}
 		else
