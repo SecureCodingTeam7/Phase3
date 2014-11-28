@@ -51,7 +51,7 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		        
 		        <div class="pure-control-group">
 		            <label for="confirm_password">Confirm Password</label>
-		            <input name="confirm_password" id="confirm_password" type="password" placeholder="***********" onkeyup="check_confirm_pw()" required>
+		            <input name="confirm_password" id="confirm_password" type="password" placeholder="***********" onkeyup="check_pw()" required>
 		            <b id=confirm_password_info></b>
 		        </div>
 		       
@@ -103,18 +103,13 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 		var uppercase = pw.search("[a-z]")
 		var number = pw.search("[0-9]")
 		
-		if(pw.length <= 8 || lowercase == -1 || uppercase == -1 || number == -1) {
+		if(pw.length < 8 || lowercase == -1 || uppercase == -1 || number == -1) {
 			pw_info.textContent = "Password must have at least eight characters, one upper case, one lower case letter and one number"
 			submit_button.disabled = true
 		} else {
 			pw_info.textContent = ""
-			if(confirm_pw_field.value.length > 0) {
-				check_confirm_pw()
-			}
 		}
-	}
 	
-	function check_confirm_pw() {
 		if(confirm_pw_field.value != pw_field.value) {
 			confirm_pw_info.textContent = "The two passwords do not match!"
 			submit_button.disabled = true
@@ -122,7 +117,6 @@ if( !(isset( $_POST['checkRegister'] ) ) ) { ?>
 			confirm_pw_info.textContent = ""
 			submit_button.disabled = false
 		}
-		check_pw()
 	}
 
 	function charUpperCase( char ) {
