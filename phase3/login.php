@@ -54,7 +54,7 @@ if( !(isset( $_POST['checkLogin'] ) ) ) { ?>
 		</div>
 		
 		<div class="main">
-		<p>No Account yet? <a href="register.php">Click here</a> to register with us.</p>		
+		<p>No Account yet? <a href="register.php"><em>Click here</em></a> to register with us.</p>		
 			<form method="post" action="" class="pure-form pure-form-aligned">
 		    <fieldset>
 		    	<input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
