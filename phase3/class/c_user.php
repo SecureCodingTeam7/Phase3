@@ -119,33 +119,24 @@ class User {
 				$stmt->execute();
 			}
 			
+			$temp_file = tempnam(sys_get_temp_dir(), 'test');
+			$tmp_pdf = $temp_file.".pdf";
+			$password = "test";
+			createPDF($tmp_pdf,$trans,$password);
 			
-			// Sanity Check
-			$sql = "SELECT * FROM trans_codes WHERE account_id = :account_id";
-			$stmt = $connection->prepare ( $sql );
-			$stmt->bindValue ( "account_id", $this->id, PDO::PARAM_STR );
-			$stmt->execute();
-			
-		
+			$message= "Dear User ".$this->email.".\n Your transaction codes can be find in the attached PDF file.\n Please notice, that you will need your account password to open it";
+
+			try{
+				$this->sendMail($this->email, $message, $tmp_pdf);
+				unlink($tmp_pdf);
+			}
+			catch (SendEmailException $e){
+				echo "<br/>".$e->errorMessage();
+				unlink($tmp_pdf);	
+				return false;
+			}
 				
-				$temp_file = tempnam(sys_get_temp_dir(), 'test');
-				$tmp_pdf = $temp_file.".pdf";
-				$password = "test";
-				$this->createPDF($tmp_pdf,$trans,$password);
-				
-				$message= "Dear User ".$this->email.".\n Your transaction codes can be find in the attached PDF file.\n Please notice, that you will need your account password to open it";
-				
-				try{
-					$this->sendMail($this->email, $message, $tmp_pdf);
-					unlink($tmp_pdf);
-				}
-				catch (SendEmailException $e){
-					echo "<br/>".$e->errorMessage();
-					unlink($tmp_pdf);	
-					return false;
-				}
-					
-				return true;
+			return true;
 				
 				
 			//~ } else {
@@ -186,28 +177,6 @@ class User {
 		echo "mail sent";
 	}
 
-	public function createPDF($pdf_file,$trans_codes,$password) {
-		$pdf = new FPDF();
-
-		$pdf -> AddPage('P');
-		$pdf -> SetTitle("The Bank Transaction Codes for Customer Name");
-		$pdf ->SetFont('Arial','B',16);
-		$pdf->SetXY(10,10);
-		$pdf->SetFontSize(12);
-		$pdf->Write(5,'Dear Customer. Here are your Transaction Codes ');
-		$pdf->Ln();
-		for($i=0;$i<100;$i++){
-			if($i%3==0)
-				$pdf ->Ln();
-			if($i<10)	
-				$pdf->Write(5, 'TAN #0'.$i.' :  '.$trans_codes[$i]."    ");
-			else
-				$pdf->Write(5, 'TAN #'.$i.' :  '.$trans_codes[$i]."    ");
-			
-		}
-		$pdf->Output($pdf_file,"F");
-		$this->pdfEncrypt($pdf_file,"test",$pdf_file);
-	}
 	
 	public function commitTransaction( $source, $destination, $amount, $code ) {
 		$is_approved = true;
@@ -862,83 +831,10 @@ class User {
 	}
 	
 	//TODO move function to a better place
-	function pdfEncrypt ($origFile, $password, $destFile){
-        
-        $pdf =& new FPDI_Protection();
-        $pdf->FPDF('P', 'in');
-        //Calculate the number of pages from the original document.
-        $pagecount = $pdf->setSourceFile($origFile);
-        //Copy all pages from the old unprotected pdf in the new one.
-        for ($loop = 1; $loop <= $pagecount; $loop++) {
-            $tplidx = $pdf->importPage($loop);
-            $pdf->addPage();
-            $pdf->useTemplate($tplidx);
-        }
 
-        //Protect the new pdf file, and allow no printing, copy, etc. and
-        //leave only reading allowed.
-        $pdf->SetProtection(array(), $password);
-        $pdf->Output($destFile, 'F');
-        return $destFile;
-    }
-    
-    
-    //TODO move function to a better place
-    function getUTCTime(){
-	
-	$timeserver = "ptbtime1.ptb.de";
-$timercvd = $this->query_time_server($timeserver, 37);
-
-//if no error from query_time_server
-if(!$timercvd[1])
-{
-    $timevalue = bin2hex($timercvd[0]);
-    $timevalue = abs(HexDec('7fffffff') - HexDec($timevalue) - HexDec('7fffffff'));
-    $tmestamp = $timevalue - 2208988800; # convert to UNIX epoch time stamp
-    $datum = date("Y-m-d (D) H:i:s",$tmestamp - date("Z",$tmestamp)); /* incl time zone offset */
-    $doy = (date("z",$tmestamp)+1);
-
-    echo "Time check from time server ",$timeserver," : [<font color=\"red\">",$timevalue,"</font>]";
-    echo " (seconds since 1900-01-01 00:00.00).<br>\n";
-    echo "The current date and universal time is ",$datum," UTC. ";
-    echo "It is day ",$doy," of this year.<br>\n";
-    echo "The unix epoch time stamp is $tmestamp.<br>\n";
-
-	
-    echo date("d/m/Y H:i:s", $tmestamp);
-    return $tmestamp;
-}
-else
-{
-   throw new TimeServerException("Unfortunately, the time server $timeserver could not be reached at this time. ");
-   
+    	
 }
 
-	
-}
 
-//TODO move function to a better place
-function query_time_server ($timeserver, $socket)
-{
-    $fp = fsockopen($timeserver,$socket,$err,$errstr,5);
-        # parameters: server, socket, error code, error text, timeout
-    if($fp)
-    {
-        fputs($fp, "\n");
-        $timevalue = fread($fp, 49);
-        fclose($fp); # close the connection
-    }
-    else
-    {
-        $timevalue = " ";
-    }
-
-    $ret = array();
-    $ret[] = $timevalue;
-    $ret[] = $err;     # error code
-    $ret[] = $errstr;  # error text
-    return($ret);
-} # function query_time_server
-	
-}
+ 
 ?>

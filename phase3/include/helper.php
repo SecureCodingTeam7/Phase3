@@ -81,5 +81,158 @@ function checkUserExists( $email ) {
 	}
 }
 
+function deleteDir($dirPath) {
+    if (! is_dir($dirPath)) {
+        throw new InvalidArgumentException("$dirPath must be a directory");
+    }
+    if (substr($dirPath, strlen($dirPath) - 1, 1) != '/') {
+        $dirPath .= '/';
+    }
+    $files = glob($dirPath . '*', GLOB_MARK);
+    foreach ($files as $file) {
+        if (is_dir($file)) {
+            self::deleteDir($file);
+        } else {
+            unlink($file);
+        }
+    }
+    rmdir($dirPath);
+}
+
+//TODO adjust jaFilePath
+//TODO insert header
+function generateZipArchive($pin) {
+	
+	$path = tempnam(sys_get_temp_dir(),"");
+	mkdir("$path"."_dir");
+	$jarFile = "/var/www/SCS/SCS.jar";
+	$jarFileCopy = $path."_dir/scs.jar";
+	copy($jarFile,$jarFileCopy);
+	
+	$txtFile = $path."_dir/YOUR_PIN.txt";
+	
+	
+	file_put_contents($txtFile,"Your PIN for generating transaction codes via SCS: ".$pin);
+	
+	$zipFile = $path.".zip";
+	$zip = new ZipArchive();
+	if($zip->open($zipFile,ZipArchive::CREATE)==true){
+		echo " zip file was created";
+		if(file_exists($jarFileCopy))
+			$zip->addFromString("scs.jar",file_get_contents($jarFileCopy));
+		else 
+			echo " file:".$jarFileCopy." not found";
+			
+		if(file_exists($txtFile))
+			$zip->addFromString("YOUR_PIN.txt",file_get_contents($txtFile));
+		else
+			echo $txtFile." not found";
+		
+		var_dump($zip);
+	$zip->close();
+	unlink($path);
+	deleteDir($path."_dir");
+
+	if(file_exists($path.".zip")) {
+		$file_name = basename($path).".zip";
+		var_dump($file_name);
+		echo "<a href='download.php?file=".$file_name."'>Download file</a>";
+	}
+	else
+		echo $path.".zip  doesn't exist";
+	}
+}
+
+function query_time_server ($timeserver, $socket)
+{
+    $fp = fsockopen($timeserver,$socket,$err,$errstr,5);
+        # parameters: server, socket, error code, error text, timeout
+    if($fp)
+    {
+        fputs($fp, "\n");
+        $timevalue = fread($fp, 49);
+        fclose($fp); # close the connection
+    }
+    else
+    {
+        $timevalue = " ";
+    }
+
+    $ret = array();
+    $ret[] = $timevalue;
+    $ret[] = $err;     # error code
+    $ret[] = $errstr;  # error text
+    return($ret);
+} # function query_time_server
+
+	function getUTCTime(){
+	
+		$timeserver = "ptbtime1.ptb.de";
+		$timercvd = query_time_server($timeserver, 37);
+
+	//if no error from query_time_server
+		if(!$timercvd[1])
+		{
+			$timevalue = bin2hex($timercvd[0]);
+			$timevalue = abs(HexDec('7fffffff') - HexDec($timevalue) - HexDec('7fffffff'));
+			$tmestamp = $timevalue - 2208988800; # convert to UNIX epoch time stamp
+			$datum = date("Y-m-d (D) H:i:s",$tmestamp - date("Z",$tmestamp)); /* incl time zone offset */
+			$doy = (date("z",$tmestamp)+1);
+
+			echo "Time check from time server ",$timeserver," : [<font color=\"red\">",$timevalue,"</font>]";
+			echo " (seconds since 1900-01-01 00:00.00).<br>\n";
+			echo "The current date and universal time is ",$datum," UTC. ";
+			echo "It is day ",$doy," of this year.<br>\n";
+			echo "The unix epoch time stamp is $tmestamp.<br>\n";
+			echo date("d/m/Y H:i:s", $tmestamp);
+			return $tmestamp;
+		}
+		else
+		{
+			throw new TimeServerException("Unfortunately, the time server $timeserver could not be reached at this time. ");  
+		}	
+	}
+
+	function pdfEncrypt ($origFile, $password, $destFile){
+        
+        $pdf =& new FPDI_Protection();
+        $pdf->FPDF('P', 'in');
+        //Calculate the number of pages from the original document.
+        $pagecount = $pdf->setSourceFile($origFile);
+        //Copy all pages from the old unprotected pdf in the new one.
+        for ($loop = 1; $loop <= $pagecount; $loop++) {
+            $tplidx = $pdf->importPage($loop);
+            $pdf->addPage();
+            $pdf->useTemplate($tplidx);
+        }
+        //Protect the new pdf file, and allow no printing, copy, etc. and
+        //leave only reading allowed.
+        $pdf->SetProtection(array(), $password);
+        $pdf->Output($destFile, 'F');
+        return $destFile;
+    }
+    
+    function createPDF($pdf_file,$trans_codes,$password) {
+		$pdf = new FPDF();
+
+		$pdf -> AddPage('P');
+		$pdf -> SetTitle("The Bank Transaction Codes for Customer Name");
+		$pdf ->SetFont('Arial','B',16);
+		$pdf->SetXY(10,10);
+		$pdf->SetFontSize(12);
+		$pdf->Write(5,'Dear Customer. Here are your Transaction Codes ');
+		$pdf->Ln();
+		for($i=0;$i<100;$i++){
+			if($i%3==0)
+				$pdf ->Ln();
+			if($i<10)	
+				$pdf->Write(5, 'TAN #0'.$i.' :  '.$trans_codes[$i]."    ");
+			else
+				$pdf->Write(5, 'TAN #'.$i.' :  '.$trans_codes[$i]."    ");
+			
+		}
+		$pdf->Output($pdf_file,"F");
+		pdfEncrypt($pdf_file,"test",$pdf_file);
+	}
 
 ?>
