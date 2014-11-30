@@ -70,7 +70,7 @@
 									$tan_number = $user->getNextTan($selectedAccount);
 								}
 									
-	                            $command = ".././transfer_parser ".$user->id." ".$selectedAccount." ".$tan_number." ".$_FILES['myfile']['tmp_name']." 2>&1";
+	                            $command = "transfer_parser ".$user->id." ".$selectedAccount." ".$tan_number." ".$_FILES['myfile']['tmp_name']." 2>&1";
 	                            $result="";
 	                            exec($command,$result,$return);
 	
@@ -162,8 +162,13 @@
 <input type="hidden" name="CSRFToken" value="<?php echo $_SESSION['CSRFToken']; ?>" />
 <div class = "pure-controls" > Source : #<?php echo $selectedAccount ;?>
 </div>
+<?php if($user->useScs == "0") { ?>
 <div class = "pure-controls" > Required Tan : #<?php echo $user->getNextTan($selectedAccount );?>
 </div>
+<?php
+}
+?>
+
 <div class="pure-controls">
 <input type="file" name="myfile"><br>
 </div>

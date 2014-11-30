@@ -34,6 +34,10 @@ else {
 	/* Session Valid */
 	$user = new User();
 	$user->getUserDataFromEmail( $_SESSION['user_email'] );
+	
+	if($user->useScs == "0") {
+		header("Location: ../login.php");
+	}
 	$selectedAccount = "none";
 	
 	/* Selected Account Detected */

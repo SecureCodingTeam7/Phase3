@@ -141,9 +141,9 @@ class User {
 			$temp_file = tempnam(sys_get_temp_dir(), 'test');
 			$tmp_pdf = $temp_file.".pdf";
 			
-			createPDF($tmp_pdf,$tans,$this->pin);
+			createPDF($tmp_pdf,$tans,$this->pin,$accountNumber);
 			
-			$message= "Dear ".$this->name.".\n Your transaction codes can be find in the attached PDF file.\n Please notice, that you will need your account password to open it";
+			$message= "Dear ".$this->name.".\n Your transaction codes for the account ".$accountNumber." can be find in the attached PDF file.\n Please notice, that you will need your account password to open it";
 
 			try{
 				$this->sendMailWithAttachment($this->email, $message, "TAN Codes", $tmp_pdf);
@@ -629,7 +629,7 @@ class User {
 		try{
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
-		
+
 			$sql = "INSERT INTO accounts (user_id,account_number,next_tan) VALUES (:user_id,:account_number,:next_tan)";
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "user_id", $this->id, PDO::PARAM_STR );
@@ -640,7 +640,7 @@ class User {
 			$connection = null;
 				
 			if ( $stmt->rowCount() > 0 ) {
-				if($this->useSCS == "0") {
+				if($this->useScs == "0") {	
 					$this->generateTANList( $accountNumber );
 				} 
 				return true;
