@@ -143,7 +143,7 @@ class User {
 			
 			createPDF($tmp_pdf,$tans,$this->pin,$accountNumber);
 			
-			$message= "Dear ".$this->name.".\n Your transaction codes for the account ".$accountNumber." can be find in the attached PDF file.\n Please notice, that you will need your account password to open it";
+			$message= "Dear ".$this->name.".\n Your transaction codes for the account ".$accountNumber." can be find in the attached PDF file.\n Please notice, that you will need your Personal Identification Number that you received via mail to open it";
 
 			try{
 				$this->sendMailWithAttachment($this->email, $message, "TAN Codes", $tmp_pdf);
@@ -204,6 +204,10 @@ class User {
 		$is_approved = true;
 		if ( $amount >= 10000 ) {
 			$is_approved = false;
+		}
+		
+		if($is_approved) {
+			$this->updateBalances($source, $destination, $amount);	
 		}
 		
 		if( $this->useScs == "0" ) {
@@ -965,11 +969,26 @@ class User {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 		
 			foreach($tansactionIds as $tansactionId) {
+				
+				
 				$sql = "UPDATE transactions set is_approved = 1 WHERE id = :id";
 			
 				$stmt = $connection->prepare( $sql );
 				$stmt->bindValue( "id", $tansactionId, PDO::PARAM_INT );
 				$stmt->execute();
+				
+				$sql = "SELECT source, destination, amount FROM transactions  WHERE id = :id";
+			
+				$stmt = $connection->prepare( $sql );
+				$stmt->bindValue( "id", $tansactionId, PDO::PARAM_INT );
+				$stmt->execute();
+				
+				$results = $stmt->fetch();
+				
+				$src = $results['source'];
+				$dest = $results['destination'];
+				$amount = $results['amount'];
+				$this->updateBalances($src,$dest,$amount);
 			}
 			
 			$connection = null;
@@ -1082,5 +1101,35 @@ class User {
 		
 	}
 	
+	function updateBalances($srcAccount, $destAccount, $amount) {
+		
+		if( !(checkAccountExists($srcAccount) && checkAccountExists($destAccount))) {
+			return false;
+		}
+		
+		$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+		
+			$srcBalance = $this->getBalanceForAccount($srcAccount);
+			
+			$sql = "UPDATE accounts set balance = :balance  WHERE account_number = :account_number";
+	
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "balance", $srcBalance - $amount , PDO::PARAM_STR );
+			$stmt->bindValue( "account_number", $srcAccount, PDO::PARAM_STR );
+			$stmt->execute();
+			
+			
+			$destBalance = $this->getBalanceForAccount($destAccount);
+			
+			$sql = "UPDATE accounts set balance = :balance  WHERE account_number = :account_number";
+	
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "balance", $destBalance + $amount , PDO::PARAM_STR );
+			$stmt->bindValue( "account_number", $destAccount, PDO::PARAM_STR );
+			$stmt->execute();
+	
+			$connection = null;
+			return true;
+		}
 }
 ?>

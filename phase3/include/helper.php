@@ -247,7 +247,7 @@ function query_time_server ($timeserver, $socket)
         }
         //Protect the new pdf file, and allow no printing, copy, etc. and
         //leave only reading allowed.
-        $pdf->SetProtection(array(), $password);
+        $pdf->SetProtection(array('copy'), $password, $password);
         $pdf->Output($destFile, 'F');
         return $destFile;
     }
