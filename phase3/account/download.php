@@ -1,4 +1,5 @@
 <?php
+ob_start();
 ini_set( 'session.cookie_httponly', 1 );
 include_once(__DIR__."/../class/c_user.php");
 include_once(__DIR__."/../include/helper.php");
@@ -89,6 +90,8 @@ else {
 		}
 					$type = "application/x-zip-compressed";
 					
+					ob_clean();   // discard any data in the output buffer (if possible)
+					
 					header("Pragma: public");
 					header("Expires: 0");
 					header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
@@ -98,23 +101,12 @@ else {
 					header("Accept-Ranges: bytes");
 					header("Content-Disposition: attachment; filename=\"" . "scs.zip" . "\";");
 					header("Content-Transfer-Encoding: binary");
+					ob_clean();   // discard any data in the output buffer (if possible)
+					flush();      // flush headers (if possible)
 					//header("Content-Length: " . filesize($file_path));
 					// Send file for download
-					if ($stream = fopen($file_path, 'rb')){
-						while(!feof($stream) && connection_status() == 0){
-							//reset time limit for big files
-							set_time_limit(0);
-							print(fread($stream,1024));
-							flush();
-						}
-						fclose($stream);
-						unlink($file_path);
-					}
-					else{
-					// Requested file does not exist (File not found)
-					echo("Requested file does not exist");
-					die();
-				}
+					@readfile($file_path);
+					ob_end_flush();
+					@unlink($file_path);
 			}
 		}
-?>

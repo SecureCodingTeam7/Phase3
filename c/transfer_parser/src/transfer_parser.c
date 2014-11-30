@@ -692,6 +692,12 @@ int main(int argc, char **argv) {
 				return 14;
 			}
 
+			// double <= 0
+			if(famount < 0.001) {
+				printf("amount must be greater zero!\n");
+				return 1331;
+			}
+
 			if(transfer_count > 100) {
 				printf("Only 100 transactions per file allowed!\n");
 				return 18;
@@ -752,8 +758,8 @@ int main(int argc, char **argv) {
 
 	if(mysql_real_connect(db,
 			"localhost",
-			"root",
-			"samurai",
+			"mybankRoot",
+			"74VKxSYk8B6g",
 			"mybank",
 			0,
 			NULL,
