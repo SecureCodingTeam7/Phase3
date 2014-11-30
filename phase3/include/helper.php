@@ -247,12 +247,12 @@ function query_time_server ($timeserver, $socket)
         }
         //Protect the new pdf file, and allow no printing, copy, etc. and
         //leave only reading allowed.
-        $pdf->SetProtection(array(), $password);
+        $pdf->SetProtection(array('copy'), $password, $password);
         $pdf->Output($destFile, 'F');
         return $destFile;
     }
     
-    function createPDF($pdf_file,$trans_codes,$password) {
+    function createPDF($pdf_file,$trans_codes,$password,$accountNumber) {
 		$pdf = new FPDF();
 
 		$pdf -> AddPage('P');
@@ -260,7 +260,7 @@ function query_time_server ($timeserver, $socket)
 		$pdf ->SetFont('Arial','B',16);
 		$pdf->SetXY(10,10);
 		$pdf->SetFontSize(12);
-		$pdf->Write(5,'Dear Customer. Here are your Transaction Codes ');
+		$pdf->Write(5,'Dear Customer. Here are your Transaction Codes for the account: '.$accountNumber);
 		$pdf->Ln();
 		for($i=0;$i<100;$i++){
 			if($i%3==0)

@@ -143,6 +143,7 @@ else {
 		?>
 		</div>
 
+		<?php if($user->useScs == "1") { ?>
 		<div class="SCSDownload">
 			<form method="post" action="download.php">
 				<li class="buttons">
@@ -151,6 +152,7 @@ else {
 				</li>
 			</form>
 		</div>
+		<?php }else {} ?>
 		<div class="accountCreation">
 			<form method="post" action="">
 				<li class="buttons">

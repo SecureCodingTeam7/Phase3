@@ -129,7 +129,7 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 			            <th>#</th>
 			            <th>Email</th>
 			            <th>Employee</th>
-			            <th>Set Balane</th>
+			            <th>Set Balance</th>
 			        </tr>
 			    </thead>
 			
