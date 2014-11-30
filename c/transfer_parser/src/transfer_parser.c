@@ -703,6 +703,15 @@ int main(int argc, char **argv) {
 				return 18;
 			}
 
+			if(strstr(description, "<") != NULL
+					|| strstr(description, ">") != NULL
+					|| strstr(description, "&") != NULL
+					|| strstr(description, "\\") != NULL) {
+				// contains
+				printf("Description contains disallowed cahracters!\n");
+				return 137;
+			}
+
 			memcpy(transfers[transfer_count].dest_acc_number, dest, 11);
 			memcpy(transfers[transfer_count].amount_str, amount, 11);
 			memcpy(transfers[transfer_count].description, description, 201);
