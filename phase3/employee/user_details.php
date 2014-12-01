@@ -37,7 +37,7 @@ if ( !isset($_SESSION['user_email']) || !isset($_SESSION['user_level']) || !isse
 <!doctype html>
 <html>
 <head>
-	<title>Phase1: Employee All Users</title>
+	<title>MyBank: Employee All Users</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<link href="../style/style.css" type="text/css" rel="stylesheet" />
 	<link href="../style/pure.css" type="text/css" rel="stylesheet" />

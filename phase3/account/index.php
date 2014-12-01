@@ -93,7 +93,7 @@ else {
 <!doctype html>
 <html>
 <head>
-	<title>Phase1: Account Overview</title>
+	<title>MyBank: Account Overview</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<link href="../style/style.css" type="text/css" rel="stylesheet" />
 	<link href="../style/pure.css" type="text/css" rel="stylesheet" />

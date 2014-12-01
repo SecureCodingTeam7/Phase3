@@ -34,7 +34,7 @@ if( !(isset( $_POST['checkLogin'] ) ) ) { ?>
 <!doctype html>
 <html>
 <head>
-	<title>Phase1: Login Landing Page</title>
+	<title>MyBank: Login Landing Page</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 	<link href="style/style.css" type="text/css" rel="stylesheet" />
 	<link href="style/pure.css" type="text/css" rel="stylesheet" />

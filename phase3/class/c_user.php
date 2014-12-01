@@ -404,9 +404,10 @@ class User {
 				throw new TransferException("Amount must be a number.");;
 			}
 
-			if ( $amount <= 0 ) {
-				throw new TransferException("Amount must be positive.");;
+			if ( $amount < 0.01 ) {
+				throw new TransferException("Amount must be at least one cent.");;
 			}
+			
 		} else throw new TransferException("Amount Invalid.");
 		
 		if ( isset( $data['tan'] ) ) {
