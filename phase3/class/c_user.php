@@ -206,10 +206,6 @@ class User {
 			$is_approved = false;
 		}
 		
-		if($is_approved) {
-			$this->updateBalances($source, $destination, $amount);	
-		}
-		
 		if( $this->useScs == "0" ) {
 			try {
 				/* Using standard TAN method */
@@ -240,6 +236,7 @@ class User {
 	}
 	
 	public function insertTransaction ($source, $destination, $amount, $description, $code, $is_approved) {
+		
 		$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 		$connection->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
 		
@@ -254,7 +251,18 @@ class User {
 		$stmt->execute();
 		
 		if ( $stmt->rowCount() > 0) {
-			return true;
+			
+			if($is_approved) {
+				if ( $this->updateBalances( $source, $destination, $amount ) ) {
+					if ( $this->updateAvailableFunds ( $source, -$amount ) ) {
+						return $this->updateAvailableFunds ( $destination, $amount );
+					}
+				}
+				
+				throw new TransferException ("Failed to update balances or available funds.");
+			} else {
+				return $this->updateAvailableFunds( $source, -$amount );
+			}
 		} else {
 			throw new TransferException("Failed to insert transaction.");
 		}
@@ -412,6 +420,11 @@ class User {
 		if ( $destination == $source ) {
 			throw new TransferException("Destination account must be different from source account.");
 		}
+		
+		/* Make sure source account has sufficient available funds */
+		if ( $this->getAvailableFundsForAccount ( $source ) < $amount ) {
+			throw new TransferException("You have insufficient available funds.");
+		}
 
 		try {
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
@@ -437,7 +450,6 @@ class User {
 					if (!checkAccountExists( $destination )) {
 						throw new TransferException("The destination account doesn't exist.");
 					} else {
-						
 						if($this->useScs == "1") {
 							if($this->verifyGeneratedTAN($destination, $amount, $tan)) {
 								return $this->commitTransaction($source, $destination, $amount, $tan, $description);
@@ -947,10 +959,11 @@ class User {
 				$stmt->execute();
 				
 				/* Set Balance for User */
-				$sql = "UPDATE accounts set balance = :balance WHERE user_id = :id";
+				$sql = "UPDATE accounts set balance = :balance, available_funds = :available_funds WHERE user_id = :id";
 				$stmt = $connection->prepare( $sql );
 				$stmt->bindValue( "id", $userID, PDO::PARAM_INT );
 				$stmt->bindValue( "balance", $newBalance, PDO::PARAM_INT );
+				$stmt->bindValue( "available_funds", $newBalance, PDO::PARAM_INT );
 				$stmt->execute();
 				
 				$count++;
@@ -970,27 +983,55 @@ class User {
 		
 			foreach($tansactionIds as $tansactionId) {
 				
+				if ( !$this->isApprovedTransaction ( $transactionId ) ) {
+					$sql = "UPDATE transactions set is_approved = 1 WHERE id = :id";
 				
-				$sql = "UPDATE transactions set is_approved = 1 WHERE id = :id";
-			
-				$stmt = $connection->prepare( $sql );
-				$stmt->bindValue( "id", $tansactionId, PDO::PARAM_INT );
-				$stmt->execute();
+					$stmt = $connection->prepare( $sql );
+					$stmt->bindValue( "id", $tansactionId, PDO::PARAM_INT );
+					$stmt->execute();
+					
+					$sql = "SELECT source, destination, amount FROM transactions  WHERE id = :id";
 				
-				$sql = "SELECT source, destination, amount FROM transactions  WHERE id = :id";
-			
-				$stmt = $connection->prepare( $sql );
-				$stmt->bindValue( "id", $tansactionId, PDO::PARAM_INT );
-				$stmt->execute();
-				
-				$results = $stmt->fetch();
-				
-				$src = $results['source'];
-				$dest = $results['destination'];
-				$amount = $results['amount'];
-				$this->updateBalances($src,$dest,$amount);
+					$stmt = $connection->prepare( $sql );
+					$stmt->bindValue( "id", $tansactionId, PDO::PARAM_INT );
+					$stmt->execute();
+					
+					$results = $stmt->fetch();
+					
+					$src = $results['source'];
+					$dest = $results['destination'];
+					$amount = $results['amount'];
+					$this->updateBalances( $src, $dest, $amount );
+					$this->updateAvailableFunds( $dest, $amount );
+				} else {
+					throw new InvalidInputException ("Transaction with ID ".$transactionId." is already approved.");
+				}
 			}
 			
+			$connection = null;
+		} catch ( PDOException $e ) {
+			echo "<br />Connect Error: ". $e->getMessage();
+			return array();
+		}
+	}
+	
+	public function isApprovedTransaction( $transactionID ) {
+		if(!$this->isEmployee) return;
+		
+		try {
+			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+			$sql = "SELECT is_approved FROM transactions WHERE id = :transaction_id";
+				
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "transaction_id", $transactionID, PDO::PARAM_INT );
+			$stmt->execute();
+	
+			$results = $stmt->fetch();
+	
+			$isApproved = $results['is_approved'];
+			
+			return $isApproved;
+				
 			$connection = null;
 		} catch ( PDOException $e ) {
 			echo "<br />Connect Error: ". $e->getMessage();
@@ -1031,6 +1072,24 @@ class User {
 			$result = $stmt->fetch();
 			$connection = null;
 			return $result['balance'];
+		} catch ( PDOException $e ) {
+			echo "<br />Connect Error: ". $e->getMessage();
+			return -1;
+		}
+	}
+	
+	public function getAvailableFundsForAccount( $accountNumber ) {
+		try{
+			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+			$sql = "SELECT available_funds FROM accounts WHERE account_number = :accountNumber";
+	
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "accountNumber", $accountNumber, PDO::PARAM_INT );
+			$stmt->execute();
+	
+			$result = $stmt->fetch();
+			$connection = null;
+			return $result['available_funds'];
 		} catch ( PDOException $e ) {
 			echo "<br />Connect Error: ". $e->getMessage();
 			return -1;
@@ -1103,33 +1162,75 @@ class User {
 	
 	function updateBalances($srcAccount, $destAccount, $amount) {
 		
-		if( !(checkAccountExists($srcAccount) && checkAccountExists($destAccount))) {
-			return false;
+		if( !checkAccountExists( $srcAccount ) ) {
+			throw new InvalidInputException ("Unable to update balance. Source Account does not exist.");
 		}
 		
-		$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+		if(!checkAccountExists( $destAccount ) ) {
+			throw new InvalidInputException ("Unable to update balance. Destination Account does not exist.");
+		}
 		
-			$srcBalance = $this->getBalanceForAccount($srcAccount);
+		if( $amount <= 0 ) {
+			throw new InvalidInputException ("Unable to update balance. Amount is invalid.");
+		}
+		
+		try {
+			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
 			
+			$srcBalance = $this->getBalanceForAccount( $srcAccount );
+				
 			$sql = "UPDATE accounts set balance = :balance  WHERE account_number = :account_number";
-	
+			
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "balance", $srcBalance - $amount , PDO::PARAM_STR );
 			$stmt->bindValue( "account_number", $srcAccount, PDO::PARAM_STR );
 			$stmt->execute();
-			
-			
+				
+				
 			$destBalance = $this->getBalanceForAccount($destAccount);
-			
+				
 			$sql = "UPDATE accounts set balance = :balance  WHERE account_number = :account_number";
-	
+			
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "balance", $destBalance + $amount , PDO::PARAM_STR );
 			$stmt->bindValue( "account_number", $destAccount, PDO::PARAM_STR );
 			$stmt->execute();
-	
+			
 			$connection = null;
 			return true;
+			
+		} catch ( PDOException $e ) {
+				echo "<br />Connect Error: ". $e->getMessage();
+				return false;
 		}
+	}
+	
+	function updateAvailableFunds($account, $amount) {
+	
+		if( !checkAccountExists( $account ) ) {
+			throw new InvalidInputException ("Unable to update available funds. Account does not exist.");
+		}
+	
+		try {
+			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
+				
+			$currentFundsAvailable = $this->getAvailableFundsForAccount( $account );
+			$newFundsAvailable = $currentFundsAvailable + $amount;
+			
+			$sql = "UPDATE accounts set available_funds = :available_funds  WHERE account_number = :account_number";
+				
+			$stmt = $connection->prepare( $sql );
+			$stmt->bindValue( "available_funds", $newFundsAvailable, PDO::PARAM_STR );
+			$stmt->bindValue( "account_number", $account, PDO::PARAM_STR );
+			$stmt->execute();
+				
+			$connection = null;
+			return true;
+				
+		} catch ( PDOException $e ) {
+			echo "<br />Connect Error: ". $e->getMessage();
+			return false;
+		}
+	}
 }
 ?>
