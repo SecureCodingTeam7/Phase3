@@ -240,7 +240,7 @@ int test_code(MYSQL_STMT *stmt, char code[16], char src[11], long requested_code
 }
 
 int update_balance(MYSQL_STMT *stmt, char *acc_number, double amount, int addition) {
-	MYSQL_BIND param[2];
+	MYSQL_BIND param[3];
 
 	if(stmt == NULL)
 	{
@@ -250,10 +250,19 @@ int update_balance(MYSQL_STMT *stmt, char *acc_number, double amount, int additi
 
 	char *sql;
 
-	if(addition) {
-		sql = "update accounts set balance = balance + ? where account_number = ?";
+	if(amount < 10000) {
+		if(addition) {
+			sql = "update accounts set balance = balance + ?, available_funds = available_funds + ? where account_number = ?";
+		} else {
+			sql = "update accounts set balance = balance - ?, available_funds = available_funds - ? where account_number = ?";
+		}
 	} else {
-		sql = "update accounts set balance = balance - ? where account_number = ?";
+		// only update available funds if transfer has to be approved
+		if(addition) {
+			sql = "update accounts set available_funds = available_funds + ? where account_number = ?";
+		} else {
+			sql = "update accounts set available_funds = available_funds - ? where account_number = ?";
+		}
 	}
 
 	if(mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
@@ -270,9 +279,18 @@ int update_balance(MYSQL_STMT *stmt, char *acc_number, double amount, int additi
 	char tmp[11];
 	strncpy(tmp, acc_number, 11);
 
-	param[1].buffer_type = MYSQL_TYPE_VARCHAR;
-	param[1].buffer = (void *) &tmp;
-	param[1].buffer_length = strlen(acc_number);
+	if(amount < 10000) {
+		param[1].buffer_type = MYSQL_TYPE_DOUBLE;
+		param[1].buffer = (void *) &amount;
+
+		param[2].buffer_type = MYSQL_TYPE_VARCHAR;
+		param[2].buffer = (void *) &tmp;
+		param[2].buffer_length = strlen(acc_number);
+	} else {
+		param[1].buffer_type = MYSQL_TYPE_VARCHAR;
+		param[1].buffer = (void *) &tmp;
+		param[1].buffer_length = strlen(acc_number);
+	}
 
 	if(mysql_stmt_bind_param(stmt, param) != 0) {
 		printf("Could not bind parameters\n");
@@ -290,6 +308,7 @@ int update_balance(MYSQL_STMT *stmt, char *acc_number, double amount, int additi
 
 int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[16], double amount, char description[201], int update_tan) {
 	MYSQL_BIND param[6];
+	int is_approved = amount < 10000;
 
 	// update balances
 	int error;
@@ -297,9 +316,13 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 		printf("Could not update balance!");
 		return error;
 	}
-	if((error = update_balance(stmt, dest, amount, 1))) {
-		printf("Could not update balance!");
-		return error;
+
+	// Only update balance at destination if transfer is immediately approved
+	if(is_approved) {
+		if((error = update_balance(stmt, dest, amount, 1))) {
+			printf("Could not update balance!");
+			return error;
+		}
 	}
 
 	// insert into history
@@ -317,7 +340,6 @@ int insert_transaction(MYSQL_STMT *stmt, char src[11], char dest[11], char code[
 	}
 
 	memset(param, 0, sizeof(param));
-	int is_approved = amount < 10000;
 
 	// TODO why are these tmp nesseccary?
 	char src_tmp[11];
@@ -538,7 +560,7 @@ int check_account_balance(MYSQL_STMT *stmt, double amount, char *acc_number) {
 		return 6;
 	}
 
-	char *sql = "select balance from accounts where account_number = ?";
+	char *sql = "select available_funds from accounts where account_number = ?";
 
 	if(mysql_stmt_prepare(stmt, sql, strlen(sql)) != 0) {
 		printf("Could not prepare statement\n");
@@ -767,8 +789,8 @@ int main(int argc, char **argv) {
 
 	if(mysql_real_connect(db,
 			"localhost",
-			"mybankRoot",
-			"74VKxSYk8B6g",
+			"root",//"mybankRoot",
+			"samurai",//"74VKxSYk8B6g",
 			"mybank",
 			0,
 			NULL,
