@@ -141,14 +141,13 @@ class User {
 			$temp_file = tempnam(sys_get_temp_dir(), 'test');
 			$tmp_pdf = $temp_file.".pdf";
 			
-			$enc_pdf = createPDF($tmp_pdf,$tans,$this->pin,$accountNumber);
+			createPDF($tmp_pdf,$tans,$this->pin,$accountNumber);
 			
 			$message= "Dear ".$this->name.".\n Your transaction codes for the account ".$accountNumber." can be find in the attached PDF file.\n Please notice, that you will need your Personal Identification Number that you received via mail to open it";
 
 			try{
-				$this->sendMailWithAttachment($this->email, $message, "TAN Codes", $enc_pdf);
+				$this->sendMailWithAttachment($this->email, $message, "TAN Codes", $tmp_pdf);
 				unlink($tmp_pdf);
-				unlink($enc_pdf);
 			}
 			catch (SendEmailException $e){
 				echo "<br/>".$e->errorMessage();
