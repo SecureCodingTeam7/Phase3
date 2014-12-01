@@ -141,13 +141,14 @@ class User {
 			$temp_file = tempnam(sys_get_temp_dir(), 'test');
 			$tmp_pdf = $temp_file.".pdf";
 			
-			createPDF($tmp_pdf,$tans,$this->pin,$accountNumber);
+			$enc_pdf = createPDF($tmp_pdf,$tans,$this->pin,$accountNumber);
 			
 			$message= "Dear ".$this->name.".\n Your transaction codes for the account ".$accountNumber." can be find in the attached PDF file.\n Please notice, that you will need your Personal Identification Number that you received via mail to open it";
 
 			try{
-				$this->sendMailWithAttachment($this->email, $message, "TAN Codes", $tmp_pdf);
+				$this->sendMailWithAttachment($this->email, $message, "TAN Codes", $enc_pdf);
 				unlink($tmp_pdf);
+				unlink($enc_pdf);
 			}
 			catch (SendEmailException $e){
 				echo "<br/>".$e->errorMessage();
@@ -762,7 +763,7 @@ class User {
 		$result = array ();
 		try{
 			$connection = new PDO( DB_NAME, DB_USER, DB_PASS );
-			$sql = "SELECT id, name, email, passwd, use_scs, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE id = :id LIMIT 1";
+			$sql = "SELECT id, name, email, passwd, use_scs, pin, BIN(`is_employee` + 0) AS `is_employee`, BIN(`is_active` + 0) AS `is_active`, pw_recover_id FROM users WHERE id = :id LIMIT 1";
 	
 			$stmt = $connection->prepare( $sql );
 			$stmt->bindValue( "id", $id, PDO::PARAM_STR );
@@ -776,6 +777,7 @@ class User {
 			$this->isEmployee = $result['is_employee'];
 			$this->isActive = $result['is_active'];
 			$this->id = $result['id'];
+			$this->pin = $result['pin'];
 			$this->pwRecoverId = $result['pw_recover_id'];
 			$this->useScs = $result['use_scs'];
 			
@@ -945,7 +947,7 @@ class User {
 
 				if(!$user->isEmployee) {
 					if($user->useScs == "1") {
-						$this->sendMail($user->email, " Congratulations, your account was enabled by one of our employees. Have Fun!!","Account Approved");
+						$this->sendMail($user->email, "Congratulations, your account was enabled by one of our employees. Have Fun!!","Account Approved");
 					}
 					$user->addAccount(generateNewAccountNumber());
 				}
