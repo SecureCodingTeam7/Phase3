@@ -657,14 +657,14 @@ int main(int argc, char **argv) {
 			break;
 		}
 		// skip emtpy line
-		if(bytes_read == 1 && buffer[0] == '\n') {
+		if((bytes_read == 1 && buffer[0] == '\n') || (bytes_read == 2 && buffer[0] == '\r'&& buffer[1] == '\n')) {
 			free(buffer);
 			buffer_len = 0;
 			continue;
 		}
 
 		// substitute the '\n' with '\0'
-		if(buffer[bytes_read - 1] != '\n') {
+		if(bytes_read > 0 && buffer[bytes_read - 1] != '\n') {
 			if(buffer_len <= bytes_read) {
 				buffer_len++;
 				void *ptr = realloc(buffer, buffer_len);
@@ -676,6 +676,11 @@ int main(int argc, char **argv) {
 			buffer[bytes_read] = '\0';
 		} else {
 			buffer[bytes_read - 1] = '\0';
+		}
+
+		// windows
+		if(bytes_read > 1 && buffer[bytes_read - 2] == '\r') {
+			buffer[bytes_read - 2] = '\0';
 		}
 
 		if(!memcmp(buffer, "destination:", 12)) {
