@@ -1114,7 +1114,7 @@ class User {
 			
 			// Send the mail
 			
-			$message= "Dear ".$this->name.".\n You requested a new password. Please click on this link to get a new password via email: phase3/pw_recovery?email=$this->email&id=$pwRecoverId";
+			$message= "Dear ".$this->name.".\n You requested a new password. Please click on this link to get a new password via email: <ip>/pw_recovery?email=$this->email&id=$pwRecoverId";
 				
 			
 			$this->sendMail($this->email, $message, "Password Recovery");
