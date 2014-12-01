@@ -167,7 +167,7 @@ int test_code(MYSQL_STMT *stmt, char code[16], char src[11], long requested_code
 
 	mysql_stmt_free_result(stmt);
 
-	printf("code code_number: %ld, acc_id: %ld\n", code_number, acc_id);
+	//printf("code code_number: %ld, acc_id: %ld\n", code_number, acc_id);
 	if(code_number != requested_code_number) {
 		printf("Code invalid!\n");
 		return 12;
@@ -229,7 +229,7 @@ int test_code(MYSQL_STMT *stmt, char code[16], char src[11], long requested_code
 
 	mysql_stmt_free_result(stmt);
 
-	printf("count: %ld\n", count);
+	//printf("count: %ld\n", count);
 
 	if(count != 1) {
 		printf("Code invalid!\n");
@@ -710,14 +710,8 @@ int main(int argc, char **argv) {
 			char *last_element;
 			double famount = strtod(amount, &last_element);
 			if(!(famount > 0) || *last_element != '\0') {
-				printf("amount must be a floating point number!\n");
+				printf("amount must be a floating point number greater zero!\n");
 				return 14;
-			}
-
-			// double <= 0
-			if(famount < 0.001) {
-				printf("amount must be greater zero!\n");
-				return 1331;
 			}
 
 			if(transfer_count > 100) {
@@ -789,8 +783,8 @@ int main(int argc, char **argv) {
 
 	if(mysql_real_connect(db,
 			"localhost",
-			"root",//"mybankRoot",
-			"samurai",//"74VKxSYk8B6g",
+			"mybankRoot",
+			"74VKxSYk8B6g",
 			"mybank",
 			0,
 			NULL,
@@ -828,9 +822,9 @@ int main(int argc, char **argv) {
 	// then do the batch transaction
 	int i;
 	for(i = 0; i < transfer_count; i++) {
-		printf("Details for transfer %d\n", i);
-		printf("Dest: %s\n", transfers[i].dest_acc_number);
-		printf("Amount: %f\n", transfers[i].amount);
+		//printf("Details for transfer %d\n", i);
+		//printf("Dest: %s\n", transfers[i].dest_acc_number);
+		//printf("Amount: %f\n", transfers[i].amount);
 
 		stmt = mysql_stmt_init(db);
 		if((error = check_acc_number(stmt, transfers[i].dest_acc_number))) {

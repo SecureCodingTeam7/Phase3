@@ -118,7 +118,7 @@
 <!doctype html>
 <html>
 <head>
-<title>Phase1: Credit Transfer</title>
+<title>MyBank: Credit Transfer</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <link href="../style/style.css" type="text/css" rel="stylesheet" />
 <link href="../style/pure.css" type="text/css" rel="stylesheet" />

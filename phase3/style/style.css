@@ -129,17 +129,17 @@ li
 }
 
 .balance {
+	position:absolute;
 	top:5px;
-	padding-top:6px;
-	padding-left:350px;
+	right:350px;
 	width: auto;
 	height: 20px;
 }
 
 .availableFunds {
-	top:5px;
-	padding-left:350px;
-	width: auto;
+	position:absolute;
+	top:30px;
+	right:350px;
 	height: 20px;
 }
 
