@@ -151,10 +151,14 @@
 <div class="main">
 	<div id="description">
 		Example file:<br /><br />
-		code:299347049962292<br />
+		code:299347049962292<br /><br />
 		destination:2510053093<br />
 		amount:123<br />
-		description:my description<br />
+		description:my description<br /><br />
+		destination:123450976<br />
+		amount:100.80<br />
+		description:my description2<br /><br />
+		...<br />
 	</div>
 <form method="post" action="" class="pure-form pure-form-aligned" enctype='multipart/form-data'>
 
